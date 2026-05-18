@@ -25,6 +25,9 @@ router.get("/logout", usercontroller.logout);
 
 // User specific data
 router.get("/user/bookings", isLoggedIn, wrapAsync(listingcontroller.getMyBookings));
+router.get("/user/wishlist", isLoggedIn, wrapAsync(usercontroller.getWishlist));
+router.post("/user/wishlist/:listingId", isLoggedIn, wrapAsync(usercontroller.toggleWishlist));
+router.get("/user/reviews", isLoggedIn, wrapAsync(usercontroller.getUserReviews));
 
 // Admin routes
 router.get("/admin/users", isLoggedIn, isAdmin, wrapAsync(usercontroller.getAllUsers));

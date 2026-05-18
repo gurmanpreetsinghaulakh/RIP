@@ -7,7 +7,7 @@ export default function BookingConfirmation() {
     const location = useLocation();
     const navigate = useNavigate();
     const { formatPrice } = usePreferences();
-    const { listingTitle, totalCost, nights } = location.state || {};
+    const { listingTitle, totalCost, nights, checkIn, checkOut, bookingId } = location.state || {};
 
     useEffect(() => {
         if (!listingTitle) {
@@ -25,18 +25,26 @@ export default function BookingConfirmation() {
                 </div>
 
                 <h1 style={{ color: '#f5f5f7', fontSize: '2rem', fontWeight: '900', marginBottom: '1rem' }}>Booking Successful!</h1>
-                <p style={{ color: '#7c7c8a', marginBottom: '2.5rem', lineHeight: '1.6' }}>
-                    Congratulations! Your stay at <strong>{listingTitle}</strong> for <strong>{nights} night{nights > 1 ? 's' : ''}</strong> has been confirmed.
+<p style={{ color: '#7c7c8a', marginBottom: '2.5rem', lineHeight: '1.6' }}>
+                    Congratulations! Your stay at <strong>{listingTitle}</strong> from <strong>{checkIn ? new Date(checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</strong> to <strong>{checkOut ? new Date(checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</strong> for <strong>{nights} night{nights > 1 ? 's' : ''}</strong> has been confirmed.
                 </p>
 
                 <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '2.5rem', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'left' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <span style={{ color: '#7c7c8a' }}>Order Status:</span>
-                        <span style={{ color: '#f59e0b', fontWeight: '800' }}>PAID - PENDING APPROVAL</span>
+                        <span style={{ color: '#7c7c8a' }}>Check-In:</span>
+                        <span style={{ color: '#f5f5f7', fontWeight: '600' }}>{checkIn ? new Date(checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <span style={{ color: '#7c7c8a' }}>Transaction ID:</span>
-                        <span style={{ color: '#f5f5f7' }}>#{Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+                        <span style={{ color: '#7c7c8a' }}>Check-Out:</span>
+                        <span style={{ color: '#f5f5f7', fontWeight: '600' }}>{checkOut ? new Date(checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <span style={{ color: '#7c7c8a' }}>Order Status:</span>
+                        <span style={{ color: '#22c55e', fontWeight: '800' }}>PAID & CONFIRMED</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <span style={{ color: '#7c7c8a' }}>Booking Reference:</span>
+                        <span style={{ color: '#f5f5f7' }}>{bookingId ? `#${bookingId.slice(-8).toUpperCase()}` : `#${Math.random().toString(36).substr(2, 9).toUpperCase()}`}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#7c7c8a' }}>Total Paid:</span>

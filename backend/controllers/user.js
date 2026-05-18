@@ -11,24 +11,17 @@ const generateOtp = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
-async function sendOtpEmail(toEmail, otp) {
-  if (!BREVO_API_KEY) {
-    throw new Error("Brevo API key is not configured (BREVO_API_KEY)");
-  }
-
-  // Debug helper: ensure key is being read correctly
-  console.log("[Brevo] key length:", BREVO_API_KEY.length, "first8:", BREVO_API_KEY.slice(0, 8));
-
+async function sendEmail(toEmail, subject, htmlContent) {
   const payload = {
     sender: { name: BREVO_FROM_NAME, email: BREVO_FROM_EMAIL },
     to: [{ email: toEmail }],
-    subject: "Your HomiGo verification code",
-    htmlContent: `<html><body><h2 style="font-family: sans-serif;">Verify your HomiGo account</h2><p>Your verification code is:</p><p style="font-size: 2rem; font-weight: 700; letter-spacing: 0.15em;">${otp}</p><p>This code expires in <strong>1 minute</strong>.</p></body></html>`,
+    subject,
+    htmlContent,
   };
 
-  // If API key is not configured, log OTP instead of sending email (useful for local dev).
   if (!BREVO_API_KEY) {
-    console.warn("BREVO_API_KEY not set; OTP for", toEmail, "is", otp);
+    console.warn("BREVO_API_KEY not set; email not sent. Subject:", subject, "to:", toEmail);
+    console.log("Email preview for", toEmail, "\n", htmlContent);
     return;
   }
 
@@ -49,6 +42,59 @@ async function sendOtpEmail(toEmail, otp) {
     }
     throw new Error(`Brevo send failed: ${res.status} ${res.statusText} ${body}`);
   }
+}
+
+async function sendOtpEmail(toEmail, otp) {
+  const subject = "Your HomiGo verification code";
+  const htmlContent = `<html><body><h2 style="font-family: sans-serif;">Verify your HomiGo account</h2><p>Your verification code is:</p><p style="font-size: 2rem; font-weight: 700; letter-spacing: 0.15em;">${otp}</p><p>This code expires in <strong>1 minute</strong>.</p></body></html>`;
+  await sendEmail(toEmail, subject, htmlContent);
+}
+
+async function sendBookingConfirmationEmail(toEmail, customerName, booking, listing) {
+  const bookingRef = booking._id ? booking._id.toString().slice(-8).toUpperCase() : Math.random().toString(36).substr(2, 8).toUpperCase();
+  const checkInDate = booking.checkIn ? new Date(booking.checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+  const checkOutDate = booking.checkOut ? new Date(booking.checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+  const subject = "Your HomiGo booking is confirmed";
+  const htmlContent = `
+    <html>
+      <body style="font-family: Arial, sans-serif; color: #111;">
+        <div style="max-width: 600px; margin: auto; padding: 20px; background: #f8fafc; border-radius: 12px;">
+          <h1 style="color: #0f172a;">Booking Confirmed</h1>
+          <p>Hi ${customerName || 'Guest'},</p>
+          <p>Your HomiGo booking has been confirmed successfully.</p>
+          <table cellpadding="0" cellspacing="0" style="width: 100%; margin-top: 20px;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: 700;">Booking Reference</td>
+              <td style="padding: 8px 0;">${bookingRef}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 700;">Listing</td>
+              <td style="padding: 8px 0;">${listing.title || 'Property'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 700;">Check-In</td>
+              <td style="padding: 8px 0;">${checkInDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 700;">Check-Out</td>
+              <td style="padding: 8px 0;">${checkOutDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 700;">Nights</td>
+              <td style="padding: 8px 0;">${booking.nights}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 700;">Amount Paid</td>
+              <td style="padding: 8px 0;">₹${booking.amount?.toLocaleString()}</td>
+            </tr>
+          </table>
+          <p style="margin-top: 24px;">We’re excited to welcome you to HomiGo. If you have any questions, reply to this email or visit our support page.</p>
+          <p style="margin-top: 16px; color: #475569;">Warm regards,<br/>The HomiGo Team</p>
+        </div>
+      </body>
+    </html>
+  `;
+  await sendEmail(toEmail, subject, htmlContent);
 }
 
 module.exports.rendersignupform = (req, res) => {
@@ -244,6 +290,63 @@ module.exports.logout = (req, res, next) => {
     }
     res.json({ success: true, message: "You are logged out!" });
   });
+};
+
+module.exports.sendBookingConfirmationEmail = sendBookingConfirmationEmail;
+
+module.exports.getWishlist = async (req, res) => {
+  const user = await User.findById(req.user._id).populate('wishlist');
+  res.json({ success: true, wishlist: user.wishlist || [] });
+};
+
+module.exports.toggleWishlist = async (req, res) => {
+  const { listingId } = req.params;
+  const user = await User.findById(req.user._id);
+  const listing = await Listing.findById(listingId);
+  if (!listing) {
+    return res.status(404).json({ success: false, error: 'Listing not found' });
+  }
+
+  const wishlistIds = user.wishlist.map((item) => item.toString());
+  const listingIdStr = listing._id.toString();
+  const index = wishlistIds.indexOf(listingIdStr);
+  let action;
+
+  if (index >= 0) {
+    user.wishlist = user.wishlist.filter((item) => item.toString() !== listingIdStr);
+    action = 'removed';
+  } else {
+    user.wishlist.push(listing._id);
+    action = 'added';
+  }
+
+  await user.save();
+  await user.populate('wishlist');
+
+  res.json({ success: true, action, wishlist: user.wishlist });
+};
+
+module.exports.getUserReviews = async (req, res) => {
+  const reviews = await require('../models/review.js')
+    .find({ author: req.user._id })
+    .populate({
+      path: 'listing',
+      select: 'title location country price Image'
+    })
+    .sort({ createdAt: -1 });
+
+  // Backfill missing listing references for older review documents
+  const ListingModel = require('../models/listing.js');
+  for (const review of reviews) {
+    if (!review.listing) {
+      const listing = await ListingModel.findOne({ reviews: review._id }).select('title location country price Image');
+      if (listing) {
+        review.listing = listing;
+      }
+    }
+  }
+
+  res.json({ success: true, reviews });
 };
 
 // Admin Controllers

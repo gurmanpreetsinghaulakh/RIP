@@ -25,7 +25,7 @@ const LocalStrategy = require("passport-local");
 const User = require("./models/user.js")
 
 // Support multiple possible env names for flexibility (Render vs local)
-let urldb = process.env.ALTLASDB_URL || process.env.ATLASDB_URL || process.env.MONGODB_URI || process.env.MONGO_URL || process.env.MONGODB_URL || 'mongodb://127.0.0.1:27017/wanderlust';
+let urldb = process.env.ALTLASDB_URL || process.env.ATLASDB_URL || process.env.MONGODB_URI || process.env.MONGO_URL || process.env.MONGODB_URL || 'mongodb://127.0.0.1:27017/homigo';
 const redactedUri = urldb ? urldb.replace(/(mongodb(?:\+srv)?:\/\/[^:]+):[^@]+@/, '$1:<password>@') : 'MISSING';
 console.log('DB URI (redacted):', redactedUri);
 
@@ -177,7 +177,7 @@ if (hasFrontendDist && shouldServeFrontend) {
         app.get('/', (req, res) => res.redirect('http://localhost:5173'));
     } else {
         // If no frontend build is available in production, return a minimal JSON response.
-        app.get('/', (req, res) => res.json({ success: true, message: "Welcome to HomiGo API" }));
+        app.get('/', (req, res) => res.json({ success: true, message: "Welcome to HomiGo" }));
     }
 }
 
@@ -200,5 +200,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4000; // Render supplies PORT
 app.listen(PORT, () => {
     console.log('Server listening on port', PORT);
-    console.log(`Local listings URL: http://localhost:${PORT}/listings`);
+    console.log(`Local listings URL: http://localhost:${PORT}`);
 });

@@ -15,38 +15,36 @@ export default function UserWishlist() {
         if (!user) { navigate('/login'); return; }
         if (user.isAdmin) { navigate('/admin-dashboard'); return; }
 
-        const savedIds = localStorage.getItem(`homigo_wishlist_${user.email}`);
-        let ids = [];
-        if (savedIds) {
+        const loadWishlist = async () => {
             try {
-                ids = JSON.parse(savedIds);
-            } catch (e) {
-                console.error(e);
+                const res = await fetch('/api/user/wishlist');
+                const data = await res.json();
+                if (data.success) {
+                    setWishlist(data.wishlist || []);
+                } else {
+                    console.error(data.error);
+                    setWishlist([]);
+                }
+            } catch (err) {
+                console.error('Wishlist load failed:', err);
+                setWishlist([]);
+            } finally {
+                setLoading(false);
             }
-        }
+        };
 
-        fetch('/api/listings')
-            .then(r => r.json())
-            .then(data => {
-                const list = data.listings || (Array.isArray(data) ? data : []);
-                const filtered = list.filter(item => ids.includes(item._id));
-                setWishlist(filtered);
-            })
-            .catch(() => { })
-            .finally(() => setLoading(false));
+        loadWishlist();
     }, [user, navigate]);
 
-    const removeFromWishlist = (id) => {
-        setWishlist(prev => prev.filter(l => l._id !== id));
-        const savedIds = localStorage.getItem(`homigo_wishlist_${user.email}`);
-        if (savedIds) {
-            try {
-                const ids = JSON.parse(savedIds);
-                const updated = ids.filter(item => item !== id);
-                localStorage.setItem(`homigo_wishlist_${user.email}`, JSON.stringify(updated));
-            } catch (e) {
-                console.error(e);
+    const removeFromWishlist = async (id) => {
+        try {
+            const res = await fetch(`/api/user/wishlist/${id}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                setWishlist(prev => prev.filter(l => l._id !== id));
             }
+        } catch (err) {
+            console.error('Remove wishlist item failed:', err);
         }
     };
 
@@ -76,7 +74,7 @@ export default function UserWishlist() {
                         }}>
                             <div style={{ position: 'relative' }}>
                                 <img
-                                    src={l.image?.url || 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=400&auto=format&fit=crop'}
+                                    src={l.image?.url || l.Image?.url || 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=400&auto=format&fit=crop'}
                                     alt={l.title}
                                     style={{ width: '100%', height: '180px', objectFit: 'cover' }}
                                 />

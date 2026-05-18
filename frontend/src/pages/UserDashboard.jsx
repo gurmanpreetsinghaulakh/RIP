@@ -6,11 +6,37 @@ import UserLayout from '../components/UserLayout';
 export default function UserDashboard() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [stats, setStats] = useState({ bookings: 2, saved: 3, reviews: 2 });
+    const [stats, setStats] = useState({ bookings: 0, saved: 0, reviews: 0 });
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
         if (user.isAdmin) { navigate('/admin-dashboard'); return; }
+
+        const loadStats = async () => {
+            try {
+                const [bookingsRes, wishlistRes, reviewsRes] = await Promise.all([
+                    fetch('/api/user/bookings'),
+                    fetch('/api/user/wishlist'),
+                    fetch('/api/user/reviews')
+                ]);
+
+                const [bookingsData, wishlistData, reviewsData] = await Promise.all([
+                    bookingsRes.json().catch(() => ({})),
+                    wishlistRes.json().catch(() => ({})),
+                    reviewsRes.json().catch(() => ({}))
+                ]);
+
+                setStats({
+                    bookings: Array.isArray(bookingsData.bookings) ? bookingsData.bookings.length : 0,
+                    saved: Array.isArray(wishlistData.wishlist) ? wishlistData.wishlist.length : 0,
+                    reviews: Array.isArray(reviewsData.reviews) ? reviewsData.reviews.length : 0
+                });
+            } catch (err) {
+                console.error('Dashboard stat load failed:', err);
+            }
+        };
+
+        loadStats();
     }, [user, navigate]);
 
     if (!user) return null;

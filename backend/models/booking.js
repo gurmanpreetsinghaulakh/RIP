@@ -20,9 +20,13 @@ const bookingSchema = new Schema({
         type: Date,
         default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) // Default 1 day stay
     },
-    nights: {
+nights: {
         type: Number,
         required: true
+    },
+    rooms: {
+        type: Number,
+        default: 1
     },
     amount: {
         type: Number,

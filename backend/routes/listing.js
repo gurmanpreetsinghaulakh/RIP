@@ -35,6 +35,9 @@ router.route("/:id")
     .put(isLoggedIn, isAdmin, isOwner, upload.array('listing[Image]', 3), validateListing, wrapAsync(listingcontroller.updateroute))
     .delete(isLoggedIn, isAdmin, isOwner, wrapAsync(listingcontroller.deleteroute));
 
+// check availability route
+router.get("/:id/availability", wrapAsync(listingcontroller.checkAvailability));
+
 // book route
 router.post("/:id/book", isLoggedIn, wrapAsync(listingcontroller.bookListing));
 

@@ -11,17 +11,17 @@ export default function PaymentPage() {
     const { showModal, setModalLoading, closeModal } = useGlobalModal();
     const { formatPrice } = usePreferences();
     
-    // Extract info from state or fallback
-    const { listing, nights, totalCost } = location.state || {};
+// Extract info from state or fallback
+    const { listing, nights, totalCost, checkIn, checkOut, rooms = 1 } = location.state || {};
     const [cardData, setCardData] = useState({ number: '', expiry: '', cvc: '', name: '' });
     const [processing, setProcessing] = useState(false);
 
-    useEffect(() => {
-        if (!listing) {
+useEffect(() => {
+        if (!listing || !checkIn || !checkOut) {
             // If refreshed or accessed directly, go back
             navigate(`/listings/${id}`);
         }
-    }, [listing, id, navigate]);
+    }, [listing, checkIn, checkOut, id, navigate]);
 
     const handlePay = async (e) => {
         e.preventDefault();
@@ -54,19 +54,31 @@ export default function PaymentPage() {
         // Mock payment processing time
         setTimeout(async () => {
             try {
-                // Execute the actual booking on the backend
+// Execute the actual booking on the backend
                 const res = await fetch(`/api/listings/${id}/book`, { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         nights: nights,
-                        amount: totalCost
+                        amount: totalCost,
+                        checkIn: checkIn,
+                        checkOut: checkOut,
+                        rooms: rooms
                     })
                 });
                 const data = await res.json();
                 
-                if (data.success) {
-                    navigate('/confirmation', { state: { listingTitle: listing.title, totalCost, nights } });
+if (data.success) {
+                    navigate('/confirmation', {
+                        state: {
+                            listingTitle: listing.title,
+                            totalCost,
+                            nights,
+                            checkIn,
+                            checkOut,
+                            bookingId: data.booking ? data.booking._id : null
+                        }
+                    });
                 } else {
                     showModal({
                         title: 'Payment Failed',
@@ -93,13 +105,22 @@ export default function PaymentPage() {
                     <p style={{ color: '#7c7c8a', fontSize: '0.9rem' }}>Complete your booking for <strong>{listing.title}</strong></p>
                 </header>
 
-                <div style={{ background: 'rgba(255,56,92,0.1)', padding: '1rem', borderRadius: '0.8rem', marginBottom: '2rem', border: '1px solid rgba(255,56,92,0.2)' }}>
+<div style={{ background: 'rgba(255,56,92,0.1)', padding: '1rem', borderRadius: '0.8rem', marginBottom: '2rem', border: '1px solid rgba(255,56,92,0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span>Check-In:</span>
+                        <span style={{ fontWeight: '600' }}>{checkIn ? new Date(checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span>Check-Out:</span>
+                        <span style={{ fontWeight: '600' }}>{checkOut ? new Date(checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span>Nights:</span>
+                        <span style={{ fontWeight: '600' }}>{nights} night{nights > 1 ? 's' : ''}</span>
+                    </div>
+                    <div style={{ borderTop: '1px solid rgba(255,56,92,0.3)', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
                         <span>Amount to Pay:</span>
                         <span style={{ fontWeight: '800', color: '#ff385c' }}>{formatPrice(totalCost)}</span>
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#7c7c8a' }}>
-                        Stay Duration: {nights} night{nights > 1 ? 's' : ''}
                     </div>
                 </div>
 

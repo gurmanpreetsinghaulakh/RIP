@@ -76,10 +76,14 @@ module.exports.validateReview = (req, res, next) => {
 };
 
 module.exports.isReviewAuthor = async (req, res, next) => {
-  let { id, reviewid } = req.params;
-  let listing1 = await Review.findById(reviewid);
-  if (!listing1.author.equals(res.locals.currUser._id)) {
-    return res.status(403).json({ success: false, error: "You did not create this review" });
+  let { reviewid } = req.params;
+  let review = await Review.findById(reviewid);
+  if (!review) {
+    return res.status(404).json({ success: false, error: "Review not found" });
+  }
+  const userId = req.user?._id;
+  if (!userId || !(req.user.isAdmin || review.author.equals(userId))) {
+    return res.status(403).json({ success: false, error: "You are not authorized to manage this review" });
   }
   next();
 };

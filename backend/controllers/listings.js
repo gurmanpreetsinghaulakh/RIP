@@ -1,7 +1,108 @@
+const mongoose = require("mongoose");
 const listing = require("../models/listing");
 const Booking = require("../models/booking");
+const { sendBookingConfirmationEmail } = require("./user.js");
 
+const DEFAULT_TOTAL_ROOMS = 20;
 
+const toDateKey = (date) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateOnly = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  if (typeof value !== 'string') return null;
+  const rawDate = value.split('T')[0];
+  const [year, month, day] = rawDate.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const getDatesInRange = (checkIn, checkOut) => {
+  const start = parseDateOnly(checkIn);
+  const end = parseDateOnly(checkOut);
+  if (!start || !end || start >= end) return [];
+  const dates = [];
+  const current = new Date(start);
+  while (current < end) {
+    dates.push(toDateKey(current));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+};
+
+const getAvailabilityByRange = async (listingId, checkIn, checkOut, session = null) => {
+  const startDate = parseDateOnly(checkIn);
+  const endDate = parseDateOnly(checkOut);
+
+  if (!startDate || !endDate) {
+    throw new Error('Invalid check-in or check-out date');
+  }
+  if (startDate >= endDate) {
+    throw new Error('Check-out must be after check-in');
+  }
+
+  const listingObjQuery = listing.findById(listingId);
+  if (session) listingObjQuery.session(session);
+  const listingObj = await listingObjQuery;
+  if (!listingObj) {
+    const err = new Error('Listing not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const totalRooms = listingObj.totalRooms || DEFAULT_TOTAL_ROOMS;
+
+  const bookingQuery = Booking.find({
+    listing: listingId,
+    status: { $ne: 'cancelled' },
+    checkIn: { $lt: endDate },
+    checkOut: { $gt: startDate }
+  });
+  if (session) bookingQuery.session(session);
+  const overlappingBookings = await bookingQuery;
+
+  const dateAvailability = {};
+  let minAvailable = totalRooms;
+  const dateKeys = getDatesInRange(startDate, endDate);
+
+  for (const dateKey of dateKeys) {
+    const currentDate = parseDateOnly(dateKey);
+    let bookedRooms = 0;
+
+    for (const booking of overlappingBookings) {
+      const bookingStart = parseDateOnly(booking.checkIn);
+      const bookingEnd = parseDateOnly(booking.checkOut);
+      if (bookingStart <= currentDate && currentDate < bookingEnd) {
+        bookedRooms += booking.rooms || 1;
+      }
+    }
+
+    const availableRooms = Math.max(0, totalRooms - bookedRooms);
+    dateAvailability[dateKey] = {
+      bookedRooms,
+      availableRooms,
+      isFullyBooked: availableRooms <= 0
+    };
+    minAvailable = Math.min(minAvailable, availableRooms);
+  }
+
+  return {
+    totalRooms,
+    dateAvailability,
+    availableRooms: minAvailable,
+    available: minAvailable > 0
+  };
+};
 
 module.exports.index = async (req, res) => {
   const listings = await listing.find({});
@@ -73,34 +174,19 @@ module.exports.filterListings = async (req, res) => {
     return res.status(400).json({ success: false, error: "Category not provided" });
   }
 
-  // Define keywords for each category
-  const categoryKeywords = {
-    "Trending": ["popular", "trending", "luxury", "exclusive", "modern"],
-    "Rooms": ["room", "bedroom", "suite", "apartment", "studio"],
-    "Iconic Cities": ["city", "urban", "downtown", "metro", "metropolitan", "new york", "paris", "london", "tokyo", "dubai"],
-    "Castles": ["castle", "palace", "manor", "estate", "historic", "fortress"],
-    "Amazing pools": ["pool", "swimming", "poolside", "infinity pool", "heated pool"],
-    "Farms": ["farm", "ranch", "countryside", "rural", "barn", "farmhouse", "agricultural"],
-    "Arctic": ["arctic", "snow", "winter", "ski", "mountain", "cold", "alpine", "northern"],
-    "Treehouses": ["treehouse", "tree house", "forest", "canopy", "woods", "treetop"],
-    "Beachfront": ["beach", "beachfront", "ocean", "sea", "coastal", "seaside", "waterfront", "shore"]
-  };
+  const normalizedCategory = category.trim();
+  const exactCategories = new Set(["Beach", "Mountain", "City", "Heritage", "Forest", "Farm", "Desert", "Arctic", "Pools", "Stay"]);
 
-  const keywords = categoryKeywords[category];
-  if (!keywords) {
-    return res.status(400).json({ success: false, error: "Invalid category" });
+  let listings;
+  if (normalizedCategory === 'All' || normalizedCategory === 'Rooms') {
+    listings = await listing.find({});
+  } else if (normalizedCategory === 'Trending') {
+    listings = await listing.find({}).sort({ availableRooms: -1, price: 1 }).limit(40);
+  } else if (exactCategories.has(normalizedCategory)) {
+    listings = await listing.find({ category: normalizedCategory });
+  } else {
+    listings = await listing.find({ category: normalizedCategory });
   }
-
-  // Search for listings matching any of the keywords
-  const listings = await listing.find({
-    $or: keywords.map(keyword => ({
-      $or: [
-        { title: { $regex: keyword, $options: 'i' } },
-        { description: { $regex: keyword, $options: 'i' } },
-        { location: { $regex: keyword, $options: 'i' } }
-      ]
-    }))
-  });
 
   if (listings.length === 0) {
     return res.json({ success: true, listings: [], message: `No listings found in ${category} category` });
@@ -218,34 +304,118 @@ module.exports.deleteroute = async (req, res) => {
 };
 
 module.exports.bookListing = async (req, res) => {
-  let { id } = req.params;
-  const { nights, amount } = req.body;
+  const { id } = req.params;
+  const { nights, amount, checkIn, checkOut, rooms = 1 } = req.body;
+
+  if (!checkIn || !checkOut) {
+    return res.status(400).json({ success: false, error: 'Please provide check-in and check-out dates' });
+  }
+
+  const checkInDate = parseDateOnly(checkIn);
+  const checkOutDate = parseDateOnly(checkOut);
+
+  if (!checkInDate || !checkOutDate) {
+    return res.status(400).json({ success: false, error: 'Invalid check-in or check-out date' });
+  }
+
+  if (checkInDate >= checkOutDate) {
+    return res.status(400).json({ success: false, error: 'Check-out must be after check-in' });
+  }
+
   const listingToBook = await listing.findById(id);
-  
   if (!listingToBook) {
-    return res.status(404).json({ success: false, error: "Listing not found" });
+    return res.status(404).json({ success: false, error: 'Listing not found' });
   }
 
-  if (listingToBook.availableRooms <= 0) {
-    return res.status(400).json({ success: false, error: "No rooms available" });
+  const nightsCount = nights || Math.max(1, Math.round((checkOutDate - checkInDate) / (24 * 60 * 60 * 1000)));
+  const totalRooms = listingToBook.totalRooms || DEFAULT_TOTAL_ROOMS;
+
+  const availability = await getAvailabilityByRange(id, checkInDate, checkOutDate);
+  if (!availability.available) {
+    return res.status(400).json({ success: false, error: 'Selected dates are fully booked' });
   }
 
-  // Record the booking
-  const newBooking = new Booking({
-    listing: listingToBook._id,
-    user: req.user._id,
-    nights: nights || 1,
-    amount: amount || (listingToBook.price * (nights || 1)),
-    status: 'pending'
-  });
+  if (availability.availableRooms < rooms) {
+    return res.status(400).json({ success: false, error: `Only ${availability.availableRooms} room(s) available for selected dates` });
+  }
 
-  await newBooking.save();
+  let session;
+  try {
+    session = await mongoose.startSession();
+    let useTransaction = true;
+    try {
+      session.startTransaction();
+    } catch (startErr) {
+      useTransaction = false;
+    }
 
-  // Decrement room availability
-  listingToBook.availableRooms -= 1;
-  await listingToBook.save();
+    const availabilityDuringBooking = useTransaction
+      ? await getAvailabilityByRange(id, checkInDate, checkOutDate, session)
+      : await getAvailabilityByRange(id, checkInDate, checkOutDate);
 
-  res.json({ success: true, message: "Booking successful", availableRooms: listingToBook.availableRooms, booking: newBooking });
+    if (availabilityDuringBooking.availableRooms < rooms) {
+      if (useTransaction && session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      return res.status(400).json({ success: false, error: `Only ${availabilityDuringBooking.availableRooms} room(s) available for selected dates` });
+    }
+
+    const newBooking = new Booking({
+      listing: listingToBook._id,
+      user: req.user._id,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
+      nights: nightsCount,
+      rooms: rooms,
+      amount: amount || (listingToBook.price * nightsCount * rooms),
+      status: 'confirmed'
+    });
+
+    if (useTransaction) {
+      await newBooking.save({ session });
+      await session.commitTransaction();
+    } else {
+      await newBooking.save();
+    }
+
+    try {
+      await sendBookingConfirmationEmail(
+        req.user.email,
+        req.user.username || req.user.email,
+        newBooking,
+        listingToBook
+      );
+    } catch (emailError) {
+      console.error('Booking confirmation email error:', emailError);
+    }
+
+    res.json({ success: true, message: 'Booking successful', booking: newBooking });
+  } catch (err) {
+    if (session && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error('Booking error:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Booking failed' });
+  } finally {
+    if (session) session.endSession();
+  }
+};
+
+module.exports.checkAvailability = async (req, res) => {
+  const { id } = req.params;
+  const { checkIn, checkOut } = req.query;
+
+  if (!checkIn || !checkOut) {
+    return res.status(400).json({ success: false, error: 'Please provide check-in and check-out dates' });
+  }
+
+  try {
+    const availability = await getAvailabilityByRange(id, checkIn, checkOut);
+    return res.json({ success: true, ...availability });
+  } catch (err) {
+    console.error('Availability error:', err);
+    return res.status(err.status || 400).json({ success: false, error: err.message });
+  }
 };
 
 module.exports.getMyBookings = async (req, res) => {
