@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGlobalModal } from '../context/ModalContext';
+import { usePreferences } from '../context/PreferencesContext';
 import UserLayout from '../components/UserLayout';
 
 const STATUS_MAP = {
@@ -14,6 +15,7 @@ export default function UserBookings() {
     const { user } = useAuth();
     const { showModal, closeModal, setModalLoading } = useGlobalModal();
     const navigate = useNavigate();
+    const { formatPrice } = usePreferences();
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -100,7 +102,7 @@ export default function UserBookings() {
                                     </div>
                                     <div>
                                         <p style={{ fontSize: '0.75rem', color: 'var(--db-muted)', marginBottom: '0.2rem' }}>Total Amount</p>
-                                        <p style={{ fontSize: '0.88rem', fontWeight: '600', color: 'var(--show-brand)' }}>₹{bh.amount?.toLocaleString()}</p>
+                                        <p style={{ fontSize: '0.88rem', fontWeight: '600', color: 'var(--show-brand)' }}>{formatPrice(bh.amount)}</p>
                                     </div>
                                 </div>
                             </div>

@@ -17,11 +17,7 @@ router.post("/signup/resend", wrapAsync(usercontroller.resendSignupOtp));
 
 router.route("/login")
 .get(usercontroller.renderloginform)
-.post(saveRedirectUrl,
-  passport.authenticate("local", {
-    failureRedirect: "/login",
-    failureFlash: true,
-  }),usercontroller.login);
+.post(saveRedirectUrl, wrapAsync(usercontroller.login));
 
 
 //logout  
@@ -33,5 +29,10 @@ router.get("/user/bookings", isLoggedIn, wrapAsync(listingcontroller.getMyBookin
 // Admin routes
 router.get("/admin/users", isLoggedIn, isAdmin, wrapAsync(usercontroller.getAllUsers));
 router.patch("/admin/users/:id/suspend", isLoggedIn, isAdmin, wrapAsync(usercontroller.toggleUserSuspension));
+
+// Security & Auth routes
+router.post("/user/change-password", isLoggedIn, wrapAsync(usercontroller.changePassword));
+router.post("/user/toggle-2fa", isLoggedIn, wrapAsync(usercontroller.toggle2fa));
+router.post("/user/profile", isLoggedIn, wrapAsync(usercontroller.updateProfile));
 
 module.exports = router;

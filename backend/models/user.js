@@ -14,6 +14,14 @@ const userSchema = new Schema({
     isSuspended: {
         type: Boolean,
         default: false
+    },
+    twoFactorEnabled: {
+        type: Boolean,
+        default: false
+    },
+    notifications: {
+        type: Boolean,
+        default: true
     }
 }, { timestamps: true })
 userSchema.plugin(passportlocalmongoose);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/dashboard.css';
 import '../styles/admin.css'; // Reuse some of the admin utility styles
 
@@ -15,8 +16,11 @@ const USER_NAV = [
 
 export default function UserLayout({ children, title, subtitle, actions }) {
     const { user, logout } = useAuth();
+    const { adminSettings } = usePreferences();
     const navigate = useNavigate();
     const location = useLocation();
+
+    const siteName = adminSettings?.siteName || 'HomiGo';
 
     const handleLogout = async () => {
         await logout();
@@ -28,7 +32,7 @@ export default function UserLayout({ children, title, subtitle, actions }) {
             {/* ── SIDEBAR ── */}
             <aside className="db-sidebar">
                 <div className="db-sidebar-top">
-                    <Link to="/" className="db-logo">✦ HomiGo</Link>
+                    <Link to="/" className="db-logo">✦ {siteName}</Link>
                     <nav className="db-nav">
                         {USER_NAV.map((item) => (
                             <Link
@@ -43,12 +47,20 @@ export default function UserLayout({ children, title, subtitle, actions }) {
                 </div>
                 <div className="db-sidebar-bottom">
                     <div className="db-user-info">
-                        <div className="db-avatar">
-                            {(user?.username || 'U')[0].toUpperCase()}
+                        <div className="db-avatar" style={{
+                            background: user?.avatarUrl ? `url(${user.avatarUrl}) center/cover` : 'linear-gradient(135deg, var(--db-brand), #7c3aed)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            border: '1px solid var(--db-border)'
+                        }}>
+                            {!user?.avatarUrl && (user?.username || 'U')[0].toUpperCase()}
                         </div>
                         <div>
                             <p className="db-uname">{user?.username}</p>
-                            <p className="db-role">HomiGo Member</p>
+                            <p className="db-role">{siteName} Member</p>
                         </div>
                     </div>
                     <button className="db-logout-btn" onClick={handleLogout}>

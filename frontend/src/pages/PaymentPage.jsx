@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useGlobalModal } from '../context/ModalContext';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/showListing.css';
 
 export default function PaymentPage() {
@@ -8,6 +9,7 @@ export default function PaymentPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const { showModal, setModalLoading, closeModal } = useGlobalModal();
+    const { formatPrice } = usePreferences();
     
     // Extract info from state or fallback
     const { listing, nights, totalCost } = location.state || {};
@@ -94,7 +96,7 @@ export default function PaymentPage() {
                 <div style={{ background: 'rgba(255,56,92,0.1)', padding: '1rem', borderRadius: '0.8rem', marginBottom: '2rem', border: '1px solid rgba(255,56,92,0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                         <span>Amount to Pay:</span>
-                        <span style={{ fontWeight: '800', color: '#ff385c' }}>₹{totalCost.toLocaleString()}</span>
+                        <span style={{ fontWeight: '800', color: '#ff385c' }}>{formatPrice(totalCost)}</span>
                     </div>
                     <div style={{ fontSize: '0.8rem', color: '#7c7c8a' }}>
                         Stay Duration: {nights} night{nights > 1 ? 's' : ''}
@@ -155,7 +157,7 @@ export default function PaymentPage() {
                         className="book-btn-primary" 
                         style={{ marginTop: '1rem', background: processing ? '#333' : 'linear-gradient(135deg, #ff385c, #e61e4d)', cursor: processing ? 'not-allowed' : 'pointer' }}
                     >
-                        {processing ? 'Processing Payment...' : `Complete Payment - ₹${totalCost.toLocaleString()}`}
+                        {processing ? 'Processing Payment...' : `Complete Payment - ${formatPrice(totalCost)}`}
                     </button>
                     
                     <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#7c7c8a' }}>

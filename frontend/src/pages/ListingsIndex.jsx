@@ -1,17 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/listings.css';
 
 export default function ListingsIndex() {
     const { user } = useAuth();
+    const { formatPrice } = usePreferences();
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showTaxes, setShowTaxes] = useState(false);
     const [searchParams] = useSearchParams();
+    const [wishlistIds, setWishlistIds] = useState([]);
 
     // Get active category from URL
     const activeCategory = searchParams.get('category') || 'All';
+
+    useEffect(() => {
+        if (user) {
+            const saved = localStorage.getItem(`homigo_wishlist_${user.email}`);
+            if (saved) {
+                try {
+                    setWishlistIds(JSON.parse(saved));
+                } catch (e) {
+                    console.error("Failed to parse wishlist:", e);
+                }
+            }
+        }
+    }, [user]);
+
+    const toggleWishlist = (e, id) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) return;
+        
+        let updated;
+        if (wishlistIds.includes(id)) {
+            updated = wishlistIds.filter(item => item !== id);
+        } else {
+            updated = [...wishlistIds, id];
+        }
+        setWishlistIds(updated);
+        localStorage.setItem(`homigo_wishlist_${user.email}`, JSON.stringify(updated));
+    };
 
     useEffect(() => {
         setLoading(true);
@@ -85,17 +116,6 @@ export default function ListingsIndex() {
                     ))}
                 </div>
 
-                <div className="premium-tax-toggle" onClick={() => setShowTaxes(!showTaxes)}>
-                    <span style={{ fontSize: '0.88rem', fontWeight: '600' }}>Display total price</span>
-                    <label className="toggle-switch">
-                        <input
-                            type="checkbox"
-                            checked={showTaxes}
-                            onChange={() => { }} // Handle click in container instead
-                        />
-                        <span className="slider"></span>
-                    </label>
-                </div>
             </div>
 
             {/* Content Grid */}
@@ -124,11 +144,8 @@ export default function ListingsIndex() {
                                     alt={listing.title}
                                     loading="lazy"
                                 />
-                                <button className="wishlist-btn" title="Add to Wishlist" onClick={(e) => {
-                                    e.preventDefault();
-                                    // Add wishlist logic here later
-                                }}>
-                                    <i className="fa-regular fa-heart"></i>
+                                <button className="wishlist-btn" title="Add to Wishlist" onClick={(e) => toggleWishlist(e, listing._id)}>
+                                    <i className={wishlistIds.includes(listing._id) ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={wishlistIds.includes(listing._id) ? { color: '#ff385c' } : {}}></i>
                                 </button>
                             </div>
 
@@ -141,7 +158,7 @@ export default function ListingsIndex() {
                                     {listing.category || 'Stay'}
                                 </p>
                                 <div className="premium-card-price">
-                                    <strong>₹{listing.price?.toLocaleString("en-IN")}</strong>
+                                    <strong>{formatPrice(listing.price)}</strong>
                                     <span className="price-period"> / night</span>
                                     {showTaxes && <span className="tax-info">+18% GST</span>}
                                 </div>

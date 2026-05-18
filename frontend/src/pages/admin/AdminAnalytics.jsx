@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
+import { usePreferences } from '../../context/PreferencesContext';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -12,7 +13,7 @@ function BarChart({ data, labels, color, unit = '' }) {
             <div className="bar-chart-bars">
                 {data.map((val, i) => (
                     <div key={i} className="bar-col">
-                        <div className="bar-tooltip">{unit}{val.toLocaleString()}</div>
+                        <div className="bar-tooltip">{unit}{val.toLocaleString(undefined, {maximumFractionDigits: 1})}</div>
                         <div
                             className="bar-fill"
                             style={{ height: `${(val / max) * 100}%`, background: color }}
@@ -50,6 +51,7 @@ function DonutRing({ percentage, color, size = 80 }) {
 export default function AdminAnalytics() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { formatPrice, currency } = usePreferences();
     const [listings, setListings] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -157,9 +159,9 @@ export default function AdminAnalytics() {
                     <div className="admin-stats-grid">
                         {[
                             { icon: '📋', label: 'Bookings', value: totalBookings, sub: `Last ${rangeMap[range]} months`, accent: '#7c3aed' },
-                            { icon: '💰', label: 'Revenue', value: `₹${totalRevenueK.toFixed(1)}K`, sub: 'Confirmed stays', accent: '#10b981' },
+                            { icon: '💰', label: 'Revenue', value: formatPrice(totalRevenueK * 1000), sub: 'Confirmed stays', accent: '#10b981' },
                             { icon: '🏠', label: 'Listings', value: listings.length, sub: 'Live properties', accent: '#ff385c' },
-                            { icon: '⭐', label: 'Avg Price', value: `₹${avgPrice.toLocaleString()}`, sub: 'Market average', accent: '#f59e0b' },
+                            { icon: '⭐', label: 'Avg Price', value: formatPrice(avgPrice), sub: 'Market average', accent: '#f59e0b' },
                         ].map(c => (
                             <div key={c.label} className="admin-stat-card" style={{ '--card-accent': c.accent }}>
                                 <div className="admin-stat-icon">{c.icon}</div>
@@ -189,14 +191,14 @@ export default function AdminAnalytics() {
 
                         <div className="analytics-chart-card">
                             <div className="chart-card-header">
-                                <h3>Revenue Growth (₹K)</h3>
-                                <span className="chart-total">₹{totalRevenueK.toFixed(1)}K total</span>
+                                <h3>Revenue Growth ({currency} K)</h3>
+                                <span className="chart-total">{formatPrice(totalRevenueK * 1000)} total</span>
                             </div>
                             <BarChart 
                                 data={monthStats.map(s => s.revenue)} 
                                 labels={monthStats.map(s => s.label)} 
                                 color="linear-gradient(180deg,#34d399,#10b981)" 
-                                unit="₹" 
+                                unit="" 
                             />
                         </div>
                     </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
+import { usePreferences } from '../../context/PreferencesContext';
 import '../../styles/dashboard.css';
 
 
@@ -9,6 +10,7 @@ import '../../styles/dashboard.css';
 export default function AdminDashboard() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { formatPrice } = usePreferences();
     const [listings, setListings] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [usersCount, setUsersCount] = useState(0);
@@ -67,7 +69,7 @@ export default function AdminDashboard() {
                     { icon: '📋', label: 'Bookings', value: bookings.length, accent: '#10b981', trend: `${pendingCount} pending` },
                     {
                         icon: '💰', label: 'Total Revenue',
-                        value: `₹${totalRevenue >= 1000 ? `${(totalRevenue / 1000).toFixed(1)}K` : totalRevenue}`,
+                        value: formatPrice(totalRevenue),
                         accent: '#f59e0b', trend: 'Confirmed stays'
                     },
                 ].map(c => (
@@ -125,7 +127,7 @@ export default function AdminDashboard() {
                                             </div>
                                         </td>
                                         <td className="table-muted">{l.location}, {l.country}</td>
-                                        <td><strong>₹{l.price?.toLocaleString()}</strong></td>
+                                        <td><strong>{formatPrice(l.price)}</strong></td>
                                         <td><span className="table-category-badge">{l.category || 'Stay'}</span></td>
                                         <td>
                                             <div className="table-actions">

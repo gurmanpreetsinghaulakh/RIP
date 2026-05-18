@@ -38,7 +38,11 @@ export default function Login() {
                     navigate('/dashboard');
                 }
             } else {
-                setError(result.error || 'Invalid username or password.');
+                if (result.redirectUrl) {
+                    navigate(result.redirectUrl);
+                } else {
+                    setError(result.error || 'Invalid username or password.');
+                }
             }
         } catch (err) {
             console.error(err);

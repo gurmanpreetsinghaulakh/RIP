@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ModalProvider } from './context/ModalContext';
+import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
 import GlobalModal from './components/GlobalModal';
 
 import LandingPage from './pages/LandingPage';
@@ -31,7 +32,44 @@ import BookingConfirmation from './pages/BookingConfirmation';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  const { adminSettings } = usePreferences();
   const location = useLocation();
+
+  useEffect(() => {
+    if (adminSettings?.siteName) {
+      document.title = adminSettings.siteName;
+    }
+  }, [adminSettings]);
+
+  if (adminSettings?.maintenanceMode && !user?.isAdmin) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        width: '100vw',
+        background: '#0f172a',
+        color: '#f8fafc',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        textAlign: 'center',
+        padding: '2rem',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🛠️</div>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+          Under Maintenance
+        </h1>
+        <p style={{ fontSize: '1.1rem', color: '#94a3b8', maxWidth: '500px', lineHeight: 1.6, marginBottom: '2rem', marginLeft: 'auto', marginRight: 'auto' }}>
+          We are currently performing scheduled maintenance to improve our platform. We'll be back shortly!
+        </p>
+        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+          Please contact support if you need immediate assistance.
+        </div>
+      </div>
+    );
+  }
 
   // Paths that should not show the standard Bootstrap navbar
   const isAdminRoute = location.pathname === '/admin-dashboard' || location.pathname.startsWith('/admin/');
@@ -116,12 +154,14 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <ModalProvider>
-        <Router>
-          <GlobalModal />
-          <AppRoutes />
-        </Router>
-      </ModalProvider>
+      <PreferencesProvider>
+        <ModalProvider>
+          <Router>
+            <GlobalModal />
+            <AppRoutes />
+          </Router>
+        </ModalProvider>
+      </PreferencesProvider>
     </AuthProvider>
   );
 }

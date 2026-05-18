@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
+import { usePreferences } from '../../context/PreferencesContext';
 
 const STATUS_STYLES = {
     confirmed: { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.25)', label: '✓ Confirmed' },
@@ -12,6 +13,7 @@ const STATUS_STYLES = {
 export default function AdminBookings() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { formatPrice } = usePreferences();
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all');
@@ -79,7 +81,7 @@ export default function AdminBookings() {
                     { icon: '📋', label: 'Total', value: bookings.length, accent: '#7c3aed' },
                     { icon: '✅', label: 'Confirmed', value: bookings.filter(b => b.status === 'confirmed').length, accent: '#10b981' },
                     { icon: '⏳', label: 'Pending', value: bookings.filter(b => b.status === 'pending').length, accent: '#f59e0b' },
-                    { icon: '💰', label: 'Revenue', value: `₹${(totalRevenue / 1000).toFixed(1)}K`, accent: '#ff385c' },
+                    { icon: '💰', label: 'Revenue', value: formatPrice(totalRevenue), accent: '#ff385c' },
                 ].map(c => (
                     <div key={c.label} className="admin-stat-card" style={{ '--card-accent': c.accent }}>
                         <div className="admin-stat-icon">{c.icon}</div>
@@ -148,7 +150,7 @@ export default function AdminBookings() {
                                         </td>
                                         <td className="table-muted">{new Date(b.checkIn).toLocaleDateString()}</td>
                                         <td className="table-center">{b.nights}n</td>
-                                        <td><strong>₹{b.amount?.toLocaleString()}</strong></td>
+                                        <td><strong>{formatPrice(b.amount)}</strong></td>
                                         <td>
                                             <span className="status-badge" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
                                                 {s.label}
@@ -183,7 +185,7 @@ export default function AdminBookings() {
                             <div className="modal-row"><span>Property</span><strong>{selected.listing?.title}</strong></div>
                             <div className="modal-row"><span>Check-In</span><strong>{new Date(selected.checkIn).toLocaleDateString()}</strong></div>
                             <div className="modal-row"><span>Nights</span><strong>{selected.nights}</strong></div>
-                            <div className="modal-row"><span>Amount</span><strong>₹{selected.amount?.toLocaleString()}</strong></div>
+                            <div className="modal-row"><span>Amount</span><strong>{formatPrice(selected.amount)}</strong></div>
                             <div className="modal-row"><span>Status</span>
                                 <span className="status-badge" style={{ background: STATUS_STYLES[selected.status].bg, color: STATUS_STYLES[selected.status].color, border: `1px solid ${STATUS_STYLES[selected.status].border}` }}>
                                     {STATUS_STYLES[selected.status].label}

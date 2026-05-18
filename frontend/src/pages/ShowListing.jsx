@@ -2,16 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGlobalModal } from '../context/ModalContext';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/showListing.css';
 
 export default function ShowListing() {
     const { id } = useParams();
     const { user } = useAuth();
     const { showModal, setModalLoading, closeModal } = useGlobalModal();
+    const { formatPrice, adminSettings } = usePreferences();
     const navigate = useNavigate();
     const [listing, setListing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [nights, setNights] = useState(1);
+
+    const minNights = adminSettings?.minNights || 1;
+    const maxNights = adminSettings?.maxNights || 30;
+    const isBookingsEnabled = adminSettings?.enableBookings !== false;
+    const isReviewsEnabled = adminSettings?.enableReviews !== false;
+
+    useEffect(() => {
+        if (adminSettings?.minNights) {
+            setNights(adminSettings.minNights);
+        }
+    }, [adminSettings]);
 
     useEffect(() => {
         setLoading(true);
@@ -144,30 +157,38 @@ export default function ShowListing() {
                 <aside className="booking-sticky-card">
                     <div className="booking-prices">
                         <div className="booking-price-value">
-                            ₹{listing.price?.toLocaleString('en-IN')} <span className="price-unit">/ night</span>
+                            {formatPrice(listing.price)} <span className="price-unit">/ night</span>
                         </div>
-                        <div className="booking-rating">
-                            ⭐ 4.9 &bull; <span style={{ textDecoration: 'underline' }}>12 reviews</span>
-                        </div>
+                        {isReviewsEnabled && (
+                            <div className="booking-rating">
+                                ⭐ 4.9 &bull; <span style={{ textDecoration: 'underline' }}>12 reviews</span>
+                            </div>
+                        )}
                     </div>
 
                     {(!user || !user.isAdmin) ? (
                         <>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ fontSize: '0.8rem', color: 'var(--db-muted)', display: 'block', marginBottom: '0.4rem' }}>Stay Duration (Nights)</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--db-muted)' }}>Stay Duration (Nights)</label>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--db-muted)' }}>Min: {minNights}, Max: {maxNights}</span>
+                                </div>
                                 <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem', border: '1px solid var(--db-border)', padding: '0.4rem 0.8rem' }}>
                                     <button 
-                                        onClick={() => setNights(prev => Math.max(1, prev - 1))}
+                                        onClick={() => setNights(prev => Math.max(minNights, prev - 1))}
                                         style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0.5rem', fontSize: '1.2rem' }}
                                     >-</button>
                                     <input 
                                         type="number" 
                                         value={nights}
-                                        onChange={(e) => setNights(Math.max(1, parseInt(e.target.value) || 1))}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value) || minNights;
+                                            setNights(Math.max(minNights, Math.min(maxNights, val)));
+                                        }}
                                         style={{ flex: 1, background: 'none', border: 'none', color: 'white', textAlign: 'center', fontSize: '1rem', fontWeight: 'bold', width: '40px' }}
                                     />
                                     <button 
-                                        onClick={() => setNights(prev => prev + 1)}
+                                        onClick={() => setNights(prev => Math.min(maxNights, prev + 1))}
                                         style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0.5rem', fontSize: '1.2rem' }}
                                     >+</button>
                                 </div>
@@ -180,37 +201,48 @@ export default function ShowListing() {
                                 </div>
                             </div>
 
-                            <button className="book-btn-primary" disabled={listing.availableRooms <= 0} style={{ opacity: listing.availableRooms <= 0 ? 0.5 : 1, cursor: listing.availableRooms <= 0 ? 'not-allowed' : 'pointer' }} onClick={() => {
-                                if (!user) {
-                                    navigate('/login');
-                                } else {
-                                    const totalCost = listing.price * nights + Math.round(listing.price * 0.01);
-                                    navigate(`/payment/${id}`, { 
-                                        state: { 
-                                            listing, 
-                                            nights, 
-                                            totalCost 
-                                        } 
-                                    });
-                                }
-                            }}>
-                                {listing.availableRooms > 0 ? "Book Room" : "No Rooms Available"}
+                            {!isBookingsEnabled && (
+                                <div style={{ marginBottom: '1rem', padding: '0.8rem', background: 'rgba(245,158,11,0.1)', borderRadius: '0.5rem', border: '1px solid #f59e0b', fontSize: '0.8rem', color: '#f59e0b', lineHeight: 1.4 }}>
+                                    ⚠️ Bookings are temporarily disabled by the platform administrator.
+                                </div>
+                            )}
+
+                            <button 
+                                className="book-btn-primary" 
+                                disabled={listing.availableRooms <= 0 || !isBookingsEnabled} 
+                                style={{ opacity: (listing.availableRooms <= 0 || !isBookingsEnabled) ? 0.5 : 1, cursor: (listing.availableRooms <= 0 || !isBookingsEnabled) ? 'not-allowed' : 'pointer' }} 
+                                onClick={() => {
+                                    if (!user) {
+                                        navigate('/login');
+                                    } else {
+                                        const totalCost = listing.price * nights + Math.round(listing.price * 0.01);
+                                        navigate(`/payment/${id}`, { 
+                                            state: { 
+                                                listing, 
+                                                nights, 
+                                                totalCost 
+                                            } 
+                                        });
+                                    }
+                                }}
+                            >
+                                {!isBookingsEnabled ? "Booking Disabled" : (listing.availableRooms > 0 ? "Book Room" : "No Rooms Available")}
                             </button>
 
                             <div className="booking-footer">
                                 <p className="booking-note">You won't be charged yet</p>
 
                                 <div className="booking-calc-row">
-                                    <span style={{ textDecoration: 'underline' }}>₹{listing.price?.toLocaleString()} x {nights} night{nights > 1 ? 's' : ''}</span>
-                                    <span>₹{(listing.price * nights).toLocaleString()}</span>
+                                    <span style={{ textDecoration: 'underline' }}>{formatPrice(listing.price)} x {nights} night{nights > 1 ? 's' : ''}</span>
+                                    <span>{formatPrice(listing.price * nights)}</span>
                                 </div>
                                 <div className="booking-calc-row">
                                     <span style={{ textDecoration: 'underline' }}>Cleaning fee</span>
-                                    <span>₹{Math.round(listing.price * 0.01).toLocaleString()}</span>
+                                    <span>{formatPrice(Math.round(listing.price * 0.01))}</span>
                                 </div>
                                 <div className="booking-calc-row total">
                                     <span>Total cost</span>
-                                    <span>₹{(listing.price * nights + Math.round(listing.price * 0.01)).toLocaleString()}</span>
+                                    <span>{formatPrice(listing.price * nights + Math.round(listing.price * 0.01))}</span>
                                 </div>
                             </div>
                         </>

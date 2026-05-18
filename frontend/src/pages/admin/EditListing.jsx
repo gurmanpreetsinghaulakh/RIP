@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useGlobalModal } from '../../context/ModalContext';
 import AdminLayout from '../../components/AdminLayout';
+import { usePreferences } from '../../context/PreferencesContext';
 
 export default function EditListing() {
     const { id } = useParams();
@@ -24,6 +25,9 @@ export default function EditListing() {
     const [fetching, setFetching] = useState(true);
     const { showModal } = useGlobalModal();
     const navigate = useNavigate();
+    const { formatPrice, currency, adminSettings } = usePreferences();
+    const maxImages = adminSettings?.maxListingImages || 5;
+    const maxPriceLimit = adminSettings?.maxPriceLimit || 100000;
 
     useEffect(() => {
         setFetching(true);
@@ -63,10 +67,10 @@ export default function EditListing() {
 
     const handleFileChange = (e) => {
         const selectedFiles = Array.from(e.target.files);
-        if (files.length + selectedFiles.length > 3) {
+        if (files.length + selectedFiles.length > maxImages) {
             showModal({
                 title: 'Too Many Images',
-                message: 'You can only have a maximum of 3 images.',
+                message: `You can only have a maximum of ${maxImages} images.`,
                 type: 'error',
                 confirmText: 'Understood'
             });
@@ -94,6 +98,16 @@ export default function EditListing() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (Number(formData.price) > maxPriceLimit) {
+            showModal({
+                title: 'Price Exceeds Limit',
+                message: `The maximum price allowed is ${formatPrice(maxPriceLimit)}. Please adjust the price or update settings.`,
+                type: 'error',
+                confirmText: 'Understood'
+            });
+            return;
+        }
         setLoading(true);
         const data = new FormData();
         data.append('listing[title]', formData.title);
@@ -294,11 +308,11 @@ export default function EditListing() {
                             <div className="settings-fields">
                                 <div className="settings-field">
                                     <div className="settings-field-label">
-                                        <span>Price per Night (₹)</span>
+                                        <span>Price per Night ({currency})</span>
                                     </div>
                                     <div className="settings-field-control">
                                         <div className="settings-number-wrap">
-                                            <span className="number-prefix" style={{ color: 'var(--db-brand)', fontWeight: '800' }}>₹</span>
+                                            <span className="number-prefix" style={{ color: 'var(--db-brand)', fontWeight: '800' }}>{currency}</span>
                                             <input
                                                 name="price"
                                                 type="number"
@@ -404,10 +418,10 @@ export default function EditListing() {
                                                 >✕</button>
                                             </div>
                                         ))}
-                                        {imagePreviews.length < 3 && (
+                                        {imagePreviews.length < maxImages && (
                                             <div style={{ marginTop: '1.2rem' }}>
                                                 <p style={{ fontSize: '0.82rem', color: 'var(--db-muted)', marginBottom: '0.8rem' }}>
-                                                    Upload up to {3 - imagePreviews.length} more photo(s).
+                                                    Upload up to {maxImages - imagePreviews.length} more photo(s).
                                                 </p>
                                                 <label className="tbl-btn tbl-btn-edit" style={{ cursor: 'pointer', display: 'inline-block', padding: '0.6rem 1.2rem' }}>
                                                     Add Photo
@@ -443,7 +457,7 @@ export default function EditListing() {
                                         <div className="db-listing-info">
                                             <h3 style={{ fontSize: '0.85rem' }}>{formData.title}</h3>
                                             <p style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{formData.location}, {formData.country}</p>
-                                            <strong>₹{(Number(formData.price) || 0).toLocaleString()} <span>/ night</span></strong>
+                                            <strong>{formatPrice(Number(formData.price) || 0)} <span>/ night</span></strong>
                                         </div>
                                     </div>
                                 </div>
