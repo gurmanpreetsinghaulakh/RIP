@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useGlobalModal } from '../context/ModalContext';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/showListing.css';
 
 export default function PaymentPage() {
@@ -8,6 +9,7 @@ export default function PaymentPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const { showModal, setModalLoading, closeModal } = useGlobalModal();
+    const { formatPrice } = usePreferences();
     
 // Extract info from state or fallback
     const { listing, nights, totalCost, checkIn, checkOut, rooms = 1 } = location.state || {};
@@ -118,7 +120,7 @@ if (data.success) {
                     </div>
                     <div style={{ borderTop: '1px solid rgba(255,56,92,0.3)', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
                         <span>Amount to Pay:</span>
-                        <span style={{ fontWeight: '800', color: '#ff385c' }}>₹{totalCost.toLocaleString()}</span>
+                        <span style={{ fontWeight: '800', color: '#ff385c' }}>{formatPrice(totalCost)}</span>
                     </div>
                 </div>
 
@@ -176,7 +178,7 @@ if (data.success) {
                         className="book-btn-primary" 
                         style={{ marginTop: '1rem', background: processing ? '#333' : 'linear-gradient(135deg, #ff385c, #e61e4d)', cursor: processing ? 'not-allowed' : 'pointer' }}
                     >
-                        {processing ? 'Processing Payment...' : `Complete Payment - ₹${totalCost.toLocaleString()}`}
+                        {processing ? 'Processing Payment...' : `Complete Payment - ${formatPrice(totalCost)}`}
                     </button>
                     
                     <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#7c7c8a' }}>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGlobalModal } from '../../context/ModalContext';
 import AdminLayout from '../../components/AdminLayout';
+import { usePreferences } from '../../context/PreferencesContext';
 
 export default function NewListing() {
     const [formData, setFormData] = useState({
@@ -21,6 +22,9 @@ export default function NewListing() {
     const [loading, setLoading] = useState(false);
     const { showModal } = useGlobalModal();
     const navigate = useNavigate();
+    const { formatPrice, currency, adminSettings } = usePreferences();
+    const maxImages = adminSettings?.maxListingImages || 5;
+    const maxPriceLimit = adminSettings?.maxPriceLimit || 100000;
 
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -28,10 +32,10 @@ export default function NewListing() {
 
     const handleFileChange = (e) => {
         const selectedFiles = Array.from(e.target.files);
-        if (selectedFiles.length > 3) {
+        if (selectedFiles.length > maxImages) {
             showModal({
                 title: 'Too Many Images',
-                message: 'You can only upload a maximum of 3 images.',
+                message: `You can only upload a maximum of ${maxImages} images.`,
                 type: 'error',
                 confirmText: 'Understood'
             });
@@ -60,10 +64,20 @@ export default function NewListing() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (files.length === 0 || files.length > 3) {
+        if (files.length === 0 || files.length > maxImages) {
             showModal({
                 title: 'Image Required',
-                message: 'Please select between 1 and 3 images for the listing.',
+                message: `Please select between 1 and ${maxImages} images for the listing.`,
+                type: 'error',
+                confirmText: 'Understood'
+            });
+            return;
+        }
+
+        if (Number(formData.price) > maxPriceLimit) {
+            showModal({
+                title: 'Price Exceeds Limit',
+                message: `The maximum price allowed is ${formatPrice(maxPriceLimit)}. Please adjust the price or update settings.`,
                 type: 'error',
                 confirmText: 'Understood'
             });
@@ -268,11 +282,11 @@ export default function NewListing() {
                         <div className="settings-fields">
                             <div className="settings-field">
                                 <div className="settings-field-label">
-                                    <span>Price per Night (₹)</span>
+                                    <span>Price per Night ({currency})</span>
                                 </div>
                                 <div className="settings-field-control">
                                     <div className="settings-number-wrap">
-                                        <span className="number-prefix" style={{ color: 'var(--db-brand)', fontWeight: '800' }}>₹</span>
+                                        <span className="number-prefix" style={{ color: 'var(--db-brand)', fontWeight: '800' }}>{currency}</span>
                                         <input
                                             name="price"
                                             placeholder="2500"
@@ -371,13 +385,13 @@ export default function NewListing() {
                                                 >✕</button>
                                             </div>
                                         ))}
-                                        {files.length < 3 && (
+                                        {files.length < maxImages && (
                                             <label className="tbl-btn tbl-btn-edit" style={{ cursor: 'pointer', display: 'inline-block', padding: '0.6rem 1.2rem', marginTop: '1rem' }}>
                                                 Add Another Photo
                                                 <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => {
                                                     const selected = Array.from(e.target.files);
-                                                    if (files.length + selected.length > 3) {
-                                                        showModal({ title: 'Too Many Images', message: 'Maximum 3 images allowed.', type: 'error', confirmText: 'Ok' });
+                                                    if (files.length + selected.length > maxImages) {
+                                                        showModal({ title: 'Too Many Images', message: `Maximum ${maxImages} images allowed.`, type: 'error', confirmText: 'Ok' });
                                                         return;
                                                     }
                                                     handleFileChange({ target: { files: [...files, ...selected] } });
@@ -389,7 +403,7 @@ export default function NewListing() {
                                     <div style={{ padding: '2rem 1rem' }}>
                                         <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.8rem' }}>🖼️</span>
                                         <p style={{ fontSize: '0.88rem', color: 'var(--db-muted)', marginBottom: '1.2rem' }}>
-                                            Choose up to 3 high-resolution images to represent this property.
+                                            Choose up to {maxImages} high-resolution images to represent this property.
                                         </p>
                                         <label className="tbl-btn tbl-btn-edit" style={{ cursor: 'pointer', display: 'inline-block', padding: '0.6rem 1.2rem' }}>
                                             Select Photos
@@ -414,7 +428,7 @@ export default function NewListing() {
                                     <div className="db-listing-info">
                                         <h3 style={{ fontSize: '0.85rem' }}>{formData.title || 'Untitled Property'}</h3>
                                         <p style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>{formData.location || 'Location'}, {formData.country || 'Country'}</p>
-                                        <strong>₹{Number(formData.price).toLocaleString()} <span>/ night</span></strong>
+                                        <strong>{formatPrice(Number(formData.price) || 0)} <span>/ night</span></strong>
                                     </div>
                                 </div>
                             </div>

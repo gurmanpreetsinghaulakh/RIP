@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGlobalModal } from '../context/ModalContext';
+import { usePreferences } from '../context/PreferencesContext';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { differenceInDays, addDays, format, isWithinInterval, startOfDay } from 'date-fns';
@@ -11,6 +12,7 @@ export default function ShowListing() {
     const { id } = useParams();
     const { user } = useAuth();
     const { showModal, setModalLoading, closeModal } = useGlobalModal();
+    const { formatPrice, adminSettings } = usePreferences();
     const navigate = useNavigate();
 const [listing, setListing] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -54,6 +56,17 @@ const [listing, setListing] = useState(null);
         }
         setCurrentAvailable(minAvail);
     };
+
+    const minNights = adminSettings?.minNights || 1;
+    const maxNights = adminSettings?.maxNights || 30;
+    const isBookingsEnabled = adminSettings?.enableBookings !== false;
+    const isReviewsEnabled = adminSettings?.enableReviews !== false;
+
+    useEffect(() => {
+        if (adminSettings?.minNights) {
+            setNights(adminSettings.minNights);
+        }
+    }, [adminSettings]);
 
     useEffect(() => {
         if (checkIn && checkOut && Object.keys(dateAvailability).length > 0) {
@@ -343,21 +356,23 @@ useEffect(() => {
                 <aside className="booking-sticky-card">
                     <div className="booking-prices">
                         <div className="booking-price-value">
-                            ₹{listing.price?.toLocaleString('en-IN')} <span className="price-unit">/ night</span>
+                            {formatPrice(listing.price)} <span className="price-unit">/ night</span>
                         </div>
-                        {/* <div className="booking-rating">
-                            ⭐ 4.9 &bull; <span style={{ textDecoration: 'underline' }}>12 reviews</span>
-                        </div> */}
+                        {isReviewsEnabled && (
+                            <div className="booking-rating">
+                                ⭐ 4.9 &bull; <span style={{ textDecoration: 'underline' }}>12 reviews</span>
+                            </div>
+                        )}
                     </div>
 
                     {(!user || !user.isAdmin) ? (
                         <>
-<div style={{ marginBottom: '1rem' }}>
+                            <div style={{ marginBottom: '1rem' }}>
                                 <label style={{ fontSize: '0.8rem', color: 'var(--db-muted)', display: 'block', marginBottom: '0.4rem' }}>Select Dates</label>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                                     <div>
                                         <label style={{ fontSize: '0.7rem', color: '#aaa' }}>Check-in</label>
-<DatePicker
+                                        <DatePicker
                                             selected={checkIn}
                                             onChange={(date) => {
                                                 setCheckIn(date);
@@ -376,7 +391,7 @@ useEffect(() => {
                                     </div>
                                     <div>
                                         <label style={{ fontSize: '0.7rem', color: '#aaa' }}>Check-out</label>
-<DatePicker
+                                        <DatePicker
                                             selected={checkOut}
                                             onChange={(date) => setCheckOut(date)}
                                             selectsEnd
@@ -432,43 +447,54 @@ useEffect(() => {
                                 {availabilityLoading && <div className="availability-loading">🔄 Checking real-time availability...</div>}
                             </div>
 
+                            {!isBookingsEnabled && (
+                                <div style={{ marginBottom: '1rem', padding: '0.8rem', background: 'rgba(245,158,11,0.1)', borderRadius: '0.5rem', border: '1px solid #f59e0b', fontSize: '0.8rem', color: '#f59e0b', lineHeight: 1.4 }}>
+                                    ⚠️ Bookings are temporarily disabled by the platform administrator.
+                                </div>
+                            )}
+
                             {(() => {
                                 const totalCost = listing.price * nights * rooms + Math.round(listing.price * 0.01 * rooms);
                                 return (
                                     <>
-                                        <button className="book-btn-primary" disabled={currentAvailable <= 0 || availabilityLoading} style={{ opacity: (currentAvailable <= 0 || availabilityLoading) ? 0.5 : 1, cursor: (currentAvailable <= 0 || availabilityLoading) ? 'not-allowed' : 'pointer' }} onClick={() => {
-                                            if (!user) {
-                                                navigate('/login');
-                                            } else {
-                                                navigate(`/payment/${id}`, { 
-                                                    state: { 
-                                                        listing, 
-                                                        nights,
-                                                        checkIn: format(checkIn, 'yyyy-MM-dd'),
-                                                        checkOut: format(checkOut, 'yyyy-MM-dd'),
-                                                        totalCost,
-                                                        rooms
-                                                    } 
-                                                });
-                                            }
-                                        }}>
-                                            {availabilityLoading ? '🔄 Checking...' : currentAvailable > 0 ? `Book ${rooms > 1 ? `${rooms} Rooms` : 'Room'} (${nights} nights)` : "No Rooms Available"}
+                                        <button 
+                                            className="book-btn-primary" 
+                                            disabled={currentAvailable <= 0 || availabilityLoading || !isBookingsEnabled} 
+                                            style={{ opacity: (currentAvailable <= 0 || availabilityLoading || !isBookingsEnabled) ? 0.5 : 1, cursor: (currentAvailable <= 0 || availabilityLoading || !isBookingsEnabled) ? 'not-allowed' : 'pointer' }} 
+                                            onClick={() => {
+                                                if (!user) {
+                                                    navigate('/login');
+                                                } else {
+                                                    navigate(`/payment/${id}`, { 
+                                                        state: { 
+                                                            listing, 
+                                                            nights,
+                                                            checkIn: format(checkIn, 'yyyy-MM-dd'),
+                                                            checkOut: format(checkOut, 'yyyy-MM-dd'),
+                                                            totalCost,
+                                                            rooms
+                                                        } 
+                                                    });
+                                                }
+                                            }}
+                                        >
+                                            {!isBookingsEnabled ? "Booking Disabled" : (availabilityLoading ? '🔄 Checking...' : currentAvailable > 0 ? `Book ${rooms > 1 ? `${rooms} Rooms` : 'Room'} (${nights} nights)` : "No Rooms Available")}
                                         </button>
 
                                         <div className="booking-footer">
                                             <p className="booking-note">You won't be charged yet</p>
 
                                             <div className="booking-calc-row">
-                                                <span style={{ textDecoration: 'underline' }}>₹{listing.price?.toLocaleString()} x {nights} night{nights > 1 ? 's' : ''} x {rooms} room{rooms > 1 ? 's' : ''}</span>
-                                                <span>₹{(listing.price * nights * rooms).toLocaleString()}</span>
+                                                <span style={{ textDecoration: 'underline' }}>{formatPrice(listing.price)} x {nights} night{nights > 1 ? 's' : ''} x {rooms} room{rooms > 1 ? 's' : ''}</span>
+                                                <span>{formatPrice(listing.price * nights * rooms)}</span>
                                             </div>
                                             <div className="booking-calc-row">
                                                 <span style={{ textDecoration: 'underline' }}>Cleaning fee</span>
-                                                <span>₹{Math.round(listing.price * 0.01 * rooms).toLocaleString()}</span>
+                                                <span>{formatPrice(Math.round(listing.price * 0.01 * rooms))}</span>
                                             </div>
                                             <div className="booking-calc-row total">
                                                 <span>Total cost</span>
-                                                <span>₹{totalCost.toLocaleString('en-IN')}</span>
+                                                <span>{formatPrice(totalCost)}</span>
                                             </div>
                                         </div>
                                     </>

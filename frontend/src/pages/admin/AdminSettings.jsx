@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useGlobalModal } from '../../context/ModalContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import AdminLayout from '../../components/AdminLayout';
 
 const INITIAL_SETTINGS = {
@@ -59,9 +60,10 @@ function Field({ label, hint, children }) {
 }
 
 export default function AdminSettings() {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const { showModal, closeModal } = useGlobalModal();
     const navigate = useNavigate();
+    const { formatPrice, currency, adminSettings, updateAdminSettings } = usePreferences();
     const [settings, setSettings] = useState(INITIAL_SETTINGS);
     const [saved, setSaved] = useState(false);
     const [activeTab, setActiveTab] = useState('general');
@@ -69,15 +71,20 @@ export default function AdminSettings() {
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
         if (!user.isAdmin) { navigate('/dashboard'); return; }
-        // Load from localStorage if available
-        const stored = localStorage.getItem('homigo_admin_settings');
-        if (stored) { try { setSettings(JSON.parse(stored)); } catch { } }
-    }, [user, navigate]);
+        if (adminSettings) {
+            let langShort = 'en';
+            if (adminSettings.language === 'English') langShort = 'en';
+            if (adminSettings.language === 'Hindi') langShort = 'hi';
+            if (adminSettings.language === 'French') langShort = 'fr';
+            if (adminSettings.language === 'Spanish') langShort = 'es';
+            setSettings({ ...adminSettings, language: langShort });
+        }
+    }, [user, navigate, adminSettings]);
 
     const update = (key, val) => setSettings(s => ({ ...s, [key]: val }));
 
     const handleSave = () => {
-        localStorage.setItem('homigo_admin_settings', JSON.stringify(settings));
+        updateAdminSettings(settings);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
     };
@@ -90,7 +97,7 @@ export default function AdminSettings() {
             confirmText: 'Reset to Defaults',
             onConfirm: () => {
                 setSettings(INITIAL_SETTINGS);
-                localStorage.removeItem('homigo_admin_settings');
+                updateAdminSettings(INITIAL_SETTINGS);
                 closeModal();
             }
         });
@@ -162,13 +169,6 @@ export default function AdminSettings() {
                                     <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
                                 </select>
                             </Field>
-                            <Field label="Language">
-                                <select className="settings-input" value={settings.language} onChange={e => update('language', e.target.value)}>
-                                    <option value="en">English</option>
-                                    <option value="hi">Hindi</option>
-                                    <option value="fr">French</option>
-                                </select>
-                            </Field>
                         </SettingsSection>
 
                         <SettingsSection title="Features">
@@ -199,9 +199,9 @@ export default function AdminSettings() {
                                     ))}
                                 </select>
                             </Field>
-                            <Field label="Max Price Limit (₹)" hint="Listings above this price will require admin approval">
+                            <Field label={`Max Price Limit (${currency})`} hint="Listings above this price will require admin approval">
                                 <div className="settings-number-wrap">
-                                    <span className="number-prefix">₹</span>
+                                    <span className="number-prefix">{currency}</span>
                                     <input className="settings-input" type="number" min={1000} step={1000} value={settings.maxPriceLimit} onChange={e => update('maxPriceLimit', +e.target.value)} />
                                 </div>
                             </Field>
@@ -215,7 +215,7 @@ export default function AdminSettings() {
                                 </div>
                             </Field>
                             <div className="settings-info-box">
-                                💡 At {settings.commissionRate}% commission, a ₹10,000 booking earns HomiGo ₹{(10000 * settings.commissionRate / 100).toLocaleString()}.
+                                💡 At {settings.commissionRate}% commission, a {formatPrice(10000)} booking earns HomiGo {formatPrice(10000 * settings.commissionRate / 100)}.
                             </div>
                         </SettingsSection>
                     </>
@@ -281,9 +281,14 @@ export default function AdminSettings() {
                                     className="danger-btn"
                                     onClick={() => showModal({
                                         title: 'Clear Sessions',
-                                        message: 'This will invalidate all current login sessions. Note: This is currently a simulated action.',
-                                        type: 'info',
-                                        confirmText: 'Got it'
+                                        message: 'This will invalidate your current session and log you out. Are you sure you want to proceed?',
+                                        type: 'delete',
+                                        confirmText: 'Log Out',
+                                        onConfirm: async () => {
+                                            closeModal();
+                                            await logout();
+                                            navigate('/login');
+                                        }
                                     })}
                                 >
                                     Clear Sessions

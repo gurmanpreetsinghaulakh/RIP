@@ -219,32 +219,67 @@ module.exports.renderloginform = (req, res) => {
 
 
 
-module.exports.login = async (req, res) => {
-  if (req.user && req.user.isSuspended) {
-    req.logout((err) => {
-      if (err) {
-        console.error("Logout error during suspension check:", err);
-      }
-    });
-    return res.status(403).json({ success: false, error: "Account is suspended" });
-  }
+module.exports.login = async (req, res, next) => {
+  passport.authenticate("local", async (err, user, info) => {
+    if (err) {
+      return next(err);
+    }
+    
+    const { username } = req.body;
+    let existingUser = null;
+    if (username) {
+      existingUser = await User.findOne({
+        $or: [
+          { username: username },
+          { email: username }
+        ]
+      });
+    }
 
-  let RedirectUrl = req.user?.isAdmin ? "/admin-dashboard" : "/dashboard";
-  if (res.locals.redirectUrl) {
-    RedirectUrl = res.locals.redirectUrl;
-    console.log("Redirecting to saved URL:", RedirectUrl);
-  } else {
-    console.log("No saved URL, redirecting to default:", RedirectUrl);
-  }
-  // Explicitly include isAdmin so the React client can route correctly
-  const userPayload = {
-    _id: req.user?._id,
-    username: req.user?.username,
-    email: req.user?.email,
-    isAdmin: req.user?.isAdmin || false,
-    isSuspended: req.user?.isSuspended || false,
-  };
-  res.json({ success: true, message: "Welcome to HomiGo", RedirectUrl, user: userPayload });
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+        redirectUrl: "/signup"
+      });
+    }
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: "check your cridentials"
+      });
+    }
+
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        error: "your account is suspended"
+      });
+    }
+
+    req.login(user, (loginErr) => {
+      if (loginErr) {
+        return next(loginErr);
+      }
+      
+      let RedirectUrl = user.isAdmin ? "/admin-dashboard" : "/dashboard";
+      if (res.locals.redirectUrl) {
+        RedirectUrl = res.locals.redirectUrl;
+      }
+      
+      const userPayload = {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin || false,
+        isSuspended: user.isSuspended || false,
+        twoFactorEnabled: user.twoFactorEnabled || false,
+      };
+      
+      res.json({ success: true, message: "Welcome to HomiGo", RedirectUrl, user: userPayload });
+    });
+  })(req, res, next);
 };
 
 
@@ -349,4 +384,72 @@ module.exports.toggleUserSuspension = async (req, res) => {
   user.isSuspended = !user.isSuspended;
   await user.save();
   res.json({ success: true, message: `User ${user.isSuspended ? "suspended" : "activated"} successfully`, user });
+};
+
+module.exports.changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: "Both current and new passwords are required." });
+    }
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found." });
+    }
+    await user.changePassword(oldPassword, newPassword);
+    res.json({ success: true, message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(400).json({ success: false, error: err.message || "Failed to change password." });
+  }
+};
+
+module.exports.toggle2fa = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found." });
+    }
+    user.twoFactorEnabled = !user.twoFactorEnabled;
+    await user.save();
+    res.json({ success: true, message: `Two-Factor Authentication ${user.twoFactorEnabled ? 'enabled' : 'disabled'} successfully.`, twoFactorEnabled: user.twoFactorEnabled });
+  } catch (err) {
+    console.error("Toggle 2FA error:", err);
+    res.status(500).json({ success: false, error: "Failed to toggle 2FA." });
+  }
+};
+
+module.exports.updateProfile = async (req, res) => {
+  try {
+    const { notifications, username } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found." });
+    }
+    if (username) {
+      user.username = username;
+    }
+    if (notifications !== undefined) {
+      user.notifications = notifications;
+    }
+    await user.save();
+
+    req.login(user, err => {
+      if (err) return res.status(500).json({ success: false, error: "Failed to update session." });
+      
+      const userPayload = {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin || false,
+        isSuspended: user.isSuspended || false,
+        twoFactorEnabled: user.twoFactorEnabled || false,
+        notifications: user.notifications || false
+      };
+      res.json({ success: true, message: "Profile updated successfully.", user: userPayload });
+    });
+  } catch (err) {
+    console.error("Update profile error:", err);
+    res.status(500).json({ success: false, error: "Failed to update profile." });
+  }
 };

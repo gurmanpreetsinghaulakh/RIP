@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 
 export default function Navbar() {
     const [searchQuery, setSearchQuery] = useState('');
@@ -8,6 +9,7 @@ export default function Navbar() {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const { t, adminSettings } = usePreferences();
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -42,7 +44,7 @@ export default function Navbar() {
         <nav className="navbar navbar-expand-md sticky-top">
             <div className="container-fluid sticky-top">
                 <Link className="navbar-brand" to={user?.isAdmin ? '/admin-dashboard' : user ? '/dashboard' : '/'} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stays-brand)' }}>
-                    <span style={{ fontSize: '1.25rem' }}><i className="fa-solid fa-house" /></span> <b>HomiGo</b>
+                    <span style={{ fontSize: '1.25rem' }}><i className="fa-solid fa-house" /></span> <b>{adminSettings?.siteName || 'HomiGo'}</b>
                 </Link>
                 <button className="navbar-toggler bg-body-light" type="button" data-bs-toggle="collapse"
                     data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false"
@@ -90,9 +92,9 @@ export default function Navbar() {
                                 >
                                     <b>
                                         {user.isAdmin ? (
-                                            <><i className="fa-solid fa-shield-halved" /> Admin</>
+                                            <><i className="fa-solid fa-shield-halved" /> {t('nav.admin')}</>
                                         ) : (
-                                            <><i className="fa-regular fa-user" /> {user.username}</>
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>{user.avatarUrl ? <img src={user.avatarUrl} alt="avatar" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--stays-border)' }} /> : <i className="fa-regular fa-user" />}{user.username}</div>
                                         )}
                                     </b>
                                 </Link>
@@ -107,8 +109,8 @@ export default function Navbar() {
                             </>
                         ) : (
                             <>
-                                <Link className="nav-link" to="/signup" style={{ fontWeight: '700' }}>Sign up</Link>
-                                <Link className="nav-link" to="/login" style={{ fontWeight: '700' }}>Log in</Link>
+                                <Link className="nav-link" to="/signup" style={{ fontWeight: '700' }}>{t('nav.signup')}</Link>
+                                <Link className="nav-link" to="/login" style={{ fontWeight: '700' }}>{t('nav.login')}</Link>
                             </>
                         )}
                     </div>

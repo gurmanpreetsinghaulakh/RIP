@@ -2,12 +2,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useGlobalModal } from '../../context/ModalContext';
+import { usePreferences } from '../../context/PreferencesContext';
 import AdminLayout from '../../components/AdminLayout';
 
 export default function AdminListings() {
     const { user } = useAuth();
     const { showModal, setModalLoading, closeModal } = useGlobalModal();
     const navigate = useNavigate();
+    const { formatPrice } = usePreferences();
     const [listings, setListings] = useState([]);
     const [filtered, setFiltered] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -184,7 +186,7 @@ export default function AdminListings() {
                                         </div>
                                     </td>
                                     <td className="table-muted">{l.location}, {l.country}</td>
-                                    <td><strong className="price-text">₹{l.price?.toLocaleString()}</strong></td>
+                                    <td><strong className="price-text">{formatPrice(l.price)}</strong></td>
                                     <td><span className="table-category-badge">{l.category || 'Stay'}</span></td>
                                     <td>
                                         <div className="table-actions">
@@ -236,9 +238,9 @@ export default function AdminListings() {
             <div className="admin-summary-bar">
                 <span>Showing {Math.min(paginated.length, PER_PAGE)} of {filtered.length} results</span>
                 <span className="summary-dot" />
-                <span>Total value: <strong>₹{listings.reduce((a, l) => a + (l.price || 0), 0).toLocaleString()}</strong></span>
+                <span>Total value: <strong>{formatPrice(listings.reduce((a, l) => a + (l.price || 0), 0))}</strong></span>
                 <span className="summary-dot" />
-                <span>Avg price: <strong>₹{listings.length ? Math.round(listings.reduce((a, l) => a + (l.price || 0), 0) / listings.length).toLocaleString() : 0}</strong></span>
+                <span>Avg price: <strong>{formatPrice(listings.length ? Math.round(listings.reduce((a, l) => a + (l.price || 0), 0) / listings.length) : 0)}</strong></span>
             </div>
         </AdminLayout>
     );

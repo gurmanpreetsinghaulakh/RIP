@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/landing.css';
 
 const features = [
@@ -69,8 +70,12 @@ const stats = [
 
 export default function LandingPage() {
     const { user } = useAuth();
+    const { adminSettings } = usePreferences();
     const navigate = useNavigate();
     const heroRef = useRef(null);
+
+    const siteName = adminSettings?.siteName || 'HomiGo';
+    const tagline = adminSettings?.tagline || 'Your home away from home.';
 
     useEffect(() => {
         // If already logged in, redirect to appropriate dashboard
@@ -97,7 +102,7 @@ export default function LandingPage() {
             <nav className="landing-nav">
                 <div className="landing-nav-inner">
                     <Link to="/" className="landing-logo">
-                        <span className="logo-icon">✦</span> HomiGo
+                        <span className="logo-icon">✦</span> {siteName}
                     </Link>
                     <div className="landing-nav-links">
                         <a href="#features" className="nav-pill">Features</a>
@@ -118,8 +123,7 @@ export default function LandingPage() {
                         <span className="hero-gradient-text">One Click Away</span>
                     </h1>
                     <p className="hero-subtitle">
-                        Discover unique homes, villas, and experiences across the globe.
-                        HomiGo connects you with extraordinary stays curated just for you.
+                        {tagline || 'Discover unique homes, villas, and experiences across the globe.'}
                     </p>
                     <div className="hero-cta-group">
                         <Link to="/signup" className="hero-cta-primary" id="hero-login-btn">
@@ -214,7 +218,7 @@ export default function LandingPage() {
             <section className="cta-banner">
                 <div className="cta-banner-content">
                     <h2>Ready to start your journey?</h2>
-                    <p>Join millions of travellers already discovering the world with HomiGo.</p>
+                    <p>Join millions of travellers already discovering the world with {siteName}.</p>
                     <div className="cta-banner-btns">
                         <Link to="/signup" className="hero-cta-primary" id="cta-signup-btn">
                             Create Free Account
@@ -230,8 +234,8 @@ export default function LandingPage() {
             <footer className="landing-footer">
                 <div className="footer-inner">
                     <div className="footer-brand">
-                        <span className="logo-icon">✦</span> HomiGo
-                        <p>Your home away from home.</p>
+                        <span className="logo-icon">✦</span> {siteName}
+                        <p>{tagline}</p>
                     </div>
                     <div className="footer-links-col">
                         <strong>Product</strong>
@@ -253,7 +257,7 @@ export default function LandingPage() {
                     </div>
                 </div>
                 <div className="footer-bottom">
-                    © {new Date().getFullYear()} HomiGo. All rights reserved.
+                    © {new Date().getFullYear()} {siteName}. All rights reserved.
                 </div>
             </footer>
         </div>

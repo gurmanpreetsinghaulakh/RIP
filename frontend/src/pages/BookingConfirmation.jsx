@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { usePreferences } from '../context/PreferencesContext';
 import '../styles/showListing.css';
 
 export default function BookingConfirmation() {
     const location = useLocation();
     const navigate = useNavigate();
-const { listingTitle, totalCost, nights, checkIn, checkOut, bookingId } = location.state || {};
+    const { formatPrice } = usePreferences();
+    const { listingTitle, totalCost, nights, checkIn, checkOut, bookingId } = location.state || {};
 
     useEffect(() => {
         if (!listingTitle) {
@@ -46,7 +48,7 @@ const { listingTitle, totalCost, nights, checkIn, checkOut, bookingId } = locati
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#7c7c8a' }}>Total Paid:</span>
-                        <span style={{ color: '#f5f5f7', fontWeight: '800' }}>₹{totalCost.toLocaleString()}</span>
+                        <span style={{ color: '#f5f5f7', fontWeight: '800' }}>{formatPrice(totalCost)}</span>
                     </div>
                 </div>
 

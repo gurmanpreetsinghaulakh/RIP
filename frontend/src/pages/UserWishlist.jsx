@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 import UserLayout from '../components/UserLayout';
 
 export default function UserWishlist() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { formatPrice } = usePreferences();
     const [wishlist, setWishlist] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -92,7 +94,7 @@ export default function UserWishlist() {
                                 <h3 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '0.4rem' }}>{l.title}</h3>
                                 <p style={{ fontSize: '0.82rem', color: 'var(--db-muted)', marginBottom: '0.8rem' }}>{l.location}, {l.country}</p>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <strong>₹{Number(l.price || 0).toLocaleString()}<span style={{ fontWeight: 'normal', fontSize: '0.8rem' }}> /night</span></strong>
+                                    <strong>{formatPrice(l.price)}<span style={{ fontWeight: 'normal', fontSize: '0.8rem' }}> /night</span></strong>
                                     <Link to={`/listings/${l._id}`} className="tbl-btn tbl-btn-view" style={{ fontSize: '0.75rem' }}>View Details</Link>
                                 </div>
                             </div>

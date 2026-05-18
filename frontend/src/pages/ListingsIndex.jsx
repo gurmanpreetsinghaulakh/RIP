@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 import { useGlobalModal } from '../context/ModalContext';
 import '../styles/listings.css';
 
 export default function ListingsIndex() {
     const { user } = useAuth();
+    const { formatPrice } = usePreferences();
     const { showModal } = useGlobalModal();
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -182,15 +184,6 @@ export default function ListingsIndex() {
                     ))}
                 </div>
 
-                <div className="premium-controls">
-                    <div className="premium-tax-toggle" onClick={() => setShowTaxes(!showTaxes)}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: '600' }}>Total price</span>
-                        <label className="toggle-switch">
-                            <input type="checkbox" checked={showTaxes} onChange={() => {}} />
-                            <span className="slider"></span>
-                        </label>
-                    </div>
-                </div>
             </div>
 
             {/* Content Grid */}
@@ -230,7 +223,7 @@ export default function ListingsIndex() {
                                         toggleWishlist(listing._id);
                                     }}
                                 >
-                                    <i className={`fa${isInWishlist(listing._id) ? '-solid' : '-regular'} fa-heart`}></i>
+                                    <i className={`fa${isInWishlist(listing._id) ? '-solid' : '-regular'} fa-heart`} style={isInWishlist(listing._id) ? { color: '#ff385c' } : {}}></i>
                                 </button>
                             </div>
 
@@ -250,7 +243,7 @@ export default function ListingsIndex() {
                                     <span>{listing.roomType}</span>
                                 </div>
                                 <div className="premium-card-price">
-                                    <strong>₹{listing.price?.toLocaleString("en-IN")}</strong>
+                                    <strong>{formatPrice(listing.price)}</strong>
                                     <span className="price-period"> / night</span>
                                     {showTaxes && <span className="tax-info">+18% GST</span>}
                                 </div>

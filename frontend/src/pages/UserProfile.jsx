@@ -2,14 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGlobalModal } from '../context/ModalContext';
+import { usePreferences } from '../context/PreferencesContext';
 import UserLayout from '../components/UserLayout';
 
 export default function UserProfile() {
-    const { user } = useAuth();
+    const { user, logout, login } = useAuth();
+    const { updatePreferences, t } = usePreferences();
     const { showModal } = useGlobalModal();
     const navigate = useNavigate();
     const [saved, setSaved] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    // Password States
+    const [showPasswordForm, setShowPasswordForm] = useState(false);
+    const [oldPassword, setOldPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [passwordLoading, setPasswordLoading] = useState(false);
+
+    // 2FA States
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.twoFactorEnabled || false);
+    const [tfaLoading, setTfaLoading] = useState(false);
 
     const [profile, setProfile] = useState({
         username: '',
@@ -26,29 +39,179 @@ export default function UserProfile() {
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
         if (user.isAdmin) { navigate('/admin-dashboard'); return; }
-        setProfile(prev => ({
-            ...prev,
-            username: user.username || '',
-            email: user.email || ''
-        }));
+        
+        setTwoFactorEnabled(user.twoFactorEnabled || false);
+        const storedProfile = localStorage.getItem(`homigo_user_profile_${user.email}`);
+        if (storedProfile) {
+            try {
+                const parsed = JSON.parse(storedProfile);
+                setProfile(prev => ({ ...prev, ...parsed, avatarUrl: parsed.avatarUrl || user.avatarUrl || '' }));
+            } catch {}
+        } else {
+            setProfile(prev => ({
+                ...prev,
+                username: user.username || '',
+                email: user.email || '',
+                avatarUrl: user.avatarUrl || ''
+            }));
+        }
     }, [user, navigate]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setLoading(true);
-        // Simulate API call
-        setTimeout(() => {
-            setLoading(false);
+        try {
+            const res = await fetch('/api/user/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: profile.username,
+                    notifications: profile.notifications
+                })
+            });
+            const data = await res.json();
+            
+            if (user) {
+                localStorage.setItem(`homigo_user_profile_${user.email}`, JSON.stringify(profile));
+                localStorage.setItem(`homigo_currency`, profile.currency || 'INR');
+                localStorage.setItem(`homigo_language`, profile.language || 'English');
+                updatePreferences(profile.currency, profile.language);
+                
+                const updatedUser = data.success && data.user ? data.user : {};
+                login({ 
+                    ...user, 
+                    username: profile.username, 
+                    avatarUrl: profile.avatarUrl,
+                    notifications: profile.notifications,
+                    ...updatedUser
+                });
+            }
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
-        }, 800);
+        } catch (err) {
+            console.error(err);
+            showModal({
+                title: 'Error Saving Settings',
+                message: 'Failed to update user profile in the database.',
+                type: 'error'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePhotoUpload = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Data = reader.result;
+                    setProfile(prev => ({ ...prev, avatarUrl: base64Data }));
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        input.click();
+    };
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        if (!oldPassword || !newPassword || !confirmNewPassword) {
+            showModal({ title: 'Validation Warning', message: 'Please fill in all password fields.', type: 'error' });
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            showModal({ title: 'Validation Warning', message: 'New password and confirmation password do not match.', type: 'error' });
+            return;
+        }
+        if (newPassword.length < 6) {
+            showModal({ title: 'Validation Warning', message: 'Password must be at least 6 characters long.', type: 'error' });
+            return;
+        }
+
+        setPasswordLoading(true);
+        try {
+            const res = await fetch('/api/user/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showModal({
+                    title: 'Password Updated',
+                    message: 'Your password has been changed successfully!',
+                    type: 'success'
+                });
+                setOldPassword('');
+                setNewPassword('');
+                setConfirmNewPassword('');
+                setShowPasswordForm(false);
+            } else {
+                showModal({
+                    title: 'Password Change Failed',
+                    message: data.error || 'Failed to update your password.',
+                    type: 'error'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showModal({
+                title: 'Error',
+                message: 'An unexpected network error occurred.',
+                type: 'error'
+            });
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
+    const handleToggle2FA = async () => {
+        setTfaLoading(true);
+        try {
+            const res = await fetch('/api/user/toggle-2fa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTwoFactorEnabled(data.twoFactorEnabled);
+                login({ ...user, twoFactorEnabled: data.twoFactorEnabled });
+                showModal({
+                    title: 'Two-Factor Authentication',
+                    message: data.twoFactorEnabled 
+                        ? 'Two-Factor Authentication has been successfully enabled for your account!' 
+                        : 'Two-Factor Authentication has been successfully disabled.',
+                    type: 'success'
+                });
+            } else {
+                showModal({
+                    title: 'Authentication Error',
+                    message: data.error || 'Failed to update 2FA settings.',
+                    type: 'error'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showModal({
+                title: 'Error',
+                message: 'An unexpected network error occurred.',
+                type: 'error'
+            });
+        } finally {
+            setTfaLoading(false);
+        }
     };
 
     if (!user) return null;
 
     const sections = [
-        { id: 'personal', label: '👤 Personal Info' },
-        { id: 'security', label: '🔒 Security' },
-        { id: 'preferences', label: '⚙️ Preferences' },
+        { id: 'personal', label: `👤 ${t('profile.personal_info')}` },
+        { id: 'security', label: `🔒 ${t('profile.security')}` },
+        { id: 'preferences', label: `⚙️ ${t('profile.preferences')}` },
     ];
 
     const [activeSection, setActiveSection] = useState('personal');
@@ -63,7 +226,7 @@ export default function UserProfile() {
                     onClick={handleSave}
                     disabled={loading}
                 >
-                    {loading ? 'Saving...' : (saved ? '✓ Updated' : 'Save Changes')}
+                    {loading ? 'Saving...' : (saved ? '✓ Updated' : t('profile.save'))}
                 </button>
             }
         >
@@ -87,7 +250,7 @@ export default function UserProfile() {
                             width: '100px',
                             height: '100px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, var(--db-brand), #7c3aed)',
+                            background: profile.avatarUrl ? `url(${profile.avatarUrl}) center/cover` : 'linear-gradient(135deg, var(--db-brand), #7c3aed)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -96,7 +259,7 @@ export default function UserProfile() {
                             color: '#fff',
                             boxShadow: '0 8px 24px rgba(255, 56, 92, 0.3)'
                         }}>
-                            {(user.username || 'U')[0].toUpperCase()}
+                            {!profile.avatarUrl && (profile.username || user.username || 'U')[0].toUpperCase()}
                             <button
                                 style={{
                                     position: 'absolute',
@@ -115,7 +278,7 @@ export default function UserProfile() {
                                     alignItems: 'center',
                                     justifyContent: 'center'
                                 }}
-                                onClick={() => showModal({ title: 'Upload Photo', message: 'Photo upload functionality is coming soon!', type: 'info' })}
+                                onClick={handlePhotoUpload}
                             >
                                 📷
                             </button>
@@ -186,7 +349,7 @@ export default function UserProfile() {
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Display Name</label>
+                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('profile.display_name')}</label>
                                     <input
                                         className="search-input"
                                         style={{ height: '3rem', width: '100%' }}
@@ -195,7 +358,7 @@ export default function UserProfile() {
                                     />
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email Address</label>
+                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('profile.email')}</label>
                                     <input
                                         className="search-input"
                                         style={{ height: '3rem', width: '100%', opacity: 0.6 }}
@@ -206,7 +369,7 @@ export default function UserProfile() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>About You</label>
+                                <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('profile.about')}</label>
                                 <textarea
                                     className="search-input"
                                     style={{ height: '120px', width: '100%', paddingTop: '1rem', resize: 'none' }}
@@ -218,7 +381,7 @@ export default function UserProfile() {
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone Number</label>
+                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('profile.phone')}</label>
                                     <input
                                         className="search-input"
                                         style={{ height: '3rem', width: '100%' }}
@@ -228,7 +391,7 @@ export default function UserProfile() {
                                     />
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Location</label>
+                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('profile.location')}</label>
                                     <input
                                         className="search-input"
                                         style={{ height: '3rem', width: '100%' }}
@@ -251,18 +414,77 @@ export default function UserProfile() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <div style={{
                                     display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
+                                    flexDirection: 'column',
+                                    gap: '1rem',
                                     padding: '1.2rem',
                                     background: 'rgba(255,255,255,0.03)',
                                     borderRadius: '1rem',
                                     border: '1px solid var(--stays-border)'
                                 }}>
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Change Password</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--db-muted)' }}>Updated 2 months ago</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Change Password</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--db-muted)' }}>Update your security credentials regularly</div>
+                                        </div>
+                                        <button 
+                                            className="tbl-btn tbl-btn-view" 
+                                            style={{ padding: '0.5rem 1rem', border: 'none' }}
+                                            onClick={() => setShowPasswordForm(!showPasswordForm)}
+                                        >
+                                            {showPasswordForm ? 'Cancel' : 'Change'}
+                                        </button>
                                     </div>
-                                    <button className="tbl-btn tbl-btn-view" style={{ padding: '0.5rem 1rem', border: 'none' }}>Change</button>
+
+                                    {showPasswordForm && (
+                                        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--db-muted)' }}>Current Password</label>
+                                                <input
+                                                    type="password"
+                                                    className="search-input"
+                                                    style={{ height: '2.8rem', width: '100%', padding: '0 0.8rem' }}
+                                                    placeholder="Enter current password"
+                                                    value={oldPassword}
+                                                    onChange={e => setOldPassword(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--db-muted)' }}>New Password</label>
+                                                    <input
+                                                        type="password"
+                                                        className="search-input"
+                                                        style={{ height: '2.8rem', width: '100%', padding: '0 0.8rem' }}
+                                                        placeholder="At least 6 chars"
+                                                        value={newPassword}
+                                                        onChange={e => setNewPassword(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--db-muted)' }}>Confirm New Password</label>
+                                                    <input
+                                                        type="password"
+                                                        className="search-input"
+                                                        style={{ height: '2.8rem', width: '100%', padding: '0 0.8rem' }}
+                                                        placeholder="Confirm new password"
+                                                        value={confirmNewPassword}
+                                                        onChange={e => setConfirmNewPassword(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="submit"
+                                                className="admin-add-btn"
+                                                style={{ height: '2.8rem', marginTop: '0.5rem', width: '100%', border: 'none', cursor: 'pointer' }}
+                                                disabled={passwordLoading}
+                                            >
+                                                {passwordLoading ? 'Updating Password...' : 'Save Password'}
+                                            </button>
+                                        </form>
+                                    )}
                                 </div>
 
                                 <div style={{
@@ -276,9 +498,18 @@ export default function UserProfile() {
                                 }}>
                                     <div>
                                         <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Two-Factor Authentication</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--db-muted)' }}>Currently disabled for your account</div>
+                                        <div style={{ fontSize: '0.8rem', color: twoFactorEnabled ? '#10b981' : 'var(--db-muted)', fontWeight: twoFactorEnabled ? '600' : 'normal' }}>
+                                            {twoFactorEnabled ? '✓ Enabled for your account' : 'Currently disabled for your account'}
+                                        </div>
                                     </div>
-                                    <button className="tbl-btn tbl-btn-edit" style={{ padding: '0.5rem 1rem', border: 'none' }}>Enable</button>
+                                    <button 
+                                        className={twoFactorEnabled ? 'tbl-btn tbl-btn-delete' : 'tbl-btn tbl-btn-edit'} 
+                                        style={{ padding: '0.5rem 1rem', border: 'none', minWidth: '80px', cursor: 'pointer' }}
+                                        onClick={handleToggle2FA}
+                                        disabled={tfaLoading}
+                                    >
+                                        {tfaLoading ? '...' : (twoFactorEnabled ? 'Disable' : 'Enable')}
+                                    </button>
                                 </div>
                             </div>
 
@@ -287,7 +518,18 @@ export default function UserProfile() {
                                 <p style={{ fontSize: '0.8rem', color: 'var(--db-muted)', marginBottom: '1rem' }}>Deleting your account will remove all your data and historical bookings. This action cannot be undone.</p>
                                 <button
                                     style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '0.6rem 1.2rem', borderRadius: '0.6rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                                    onClick={() => showModal({ title: 'Delete Account', message: 'Proceed with extreme caution. This will permanently delete your explorer profile.', type: 'delete', confirmText: 'Request Deletion' })}
+                                    onClick={() => showModal({ 
+                                        title: 'Delete Account', 
+                                        message: 'Proceed with extreme caution. This will permanently delete your explorer profile.', 
+                                        type: 'delete', 
+                                        confirmText: 'Request Deletion',
+                                        onConfirm: async () => {
+                                            if (logout) {
+                                                await logout();
+                                                navigate('/');
+                                            }
+                                        }
+                                    })}
                                 >
                                     Delete My Account
                                 </button>
@@ -302,23 +544,9 @@ export default function UserProfile() {
                                 <p style={{ fontSize: '0.88rem', color: 'var(--db-muted)' }}>Customise your browsing and notification experience.</p>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Language</label>
-                                    <select
-                                        className="search-input"
-                                        style={{ height: '3rem', width: '100%', padding: '0 1rem' }}
-                                        value={profile.language}
-                                        onChange={e => setProfile({ ...profile, language: e.target.value })}
-                                    >
-                                        <option>English</option>
-                                        <option>Hindi</option>
-                                        <option>Spanish</option>
-                                        <option>French</option>
-                                    </select>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Currency</label>
+                                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--db-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('profile.currency')}</label>
                                     <select
                                         className="search-input"
                                         style={{ height: '3rem', width: '100%', padding: '0 1rem' }}
@@ -335,7 +563,7 @@ export default function UserProfile() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Email Notifications</div>
+                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t('profile.notifications')}</div>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--db-muted)' }}>Receive updates about your bookings</div>
                                     </div>
                                     <div
@@ -348,7 +576,7 @@ export default function UserProfile() {
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Marketing Communication</div>
+                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t('profile.marketing')}</div>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--db-muted)' }}>Get travel tips and exclusive deals</div>
                                     </div>
                                     <div
