@@ -28,6 +28,10 @@ const userSchema = new Schema({
     notifications: {
         type: Boolean,
         default: true
+    },
+    avatarUrl: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true })
 userSchema.plugin(passportlocalmongoose);

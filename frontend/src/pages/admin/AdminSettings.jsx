@@ -60,13 +60,22 @@ function Field({ label, hint, children }) {
 }
 
 export default function AdminSettings() {
-    const { user, logout } = useAuth();
+    const { user, logout, login } = useAuth();
     const { showModal, closeModal } = useGlobalModal();
     const navigate = useNavigate();
     const { formatPrice, currency, adminSettings, updateAdminSettings } = usePreferences();
     const [settings, setSettings] = useState(INITIAL_SETTINGS);
     const [saved, setSaved] = useState(false);
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState('profile');
+
+    // Admin Personal Profile States
+    const [profileUsername, setProfileUsername] = useState('');
+    const [profileEmail, setProfileEmail] = useState('');
+    const [profileAvatarUrl, setProfileAvatarUrl] = useState('');
+    const [oldPassword, setOldPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [passwordLoading, setPasswordLoading] = useState(false);
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
@@ -80,6 +89,14 @@ export default function AdminSettings() {
             setSettings({ ...adminSettings, language: langShort });
         }
     }, [user, navigate, adminSettings]);
+
+    useEffect(() => {
+        if (user) {
+            setProfileUsername(user.username || '');
+            setProfileEmail(user.email || '');
+            setProfileAvatarUrl(user.avatarUrl || '');
+        }
+    }, [user]);
 
     const update = (key, val) => setSettings(s => ({ ...s, [key]: val }));
 
@@ -103,24 +120,143 @@ export default function AdminSettings() {
         });
     };
 
-    const TABS = ['general', 'listings', 'bookings', 'security', 'advanced'];
+    const handleSaveAdminProfile = async () => {
+        try {
+            const res = await fetch('/api/user/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: profileUsername,
+                    notifications: user.notifications,
+                    avatarUrl: profileAvatarUrl
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                login({
+                    ...user,
+                    username: profileUsername,
+                    avatarUrl: profileAvatarUrl,
+                    ...data.user
+                });
+                setSaved(true);
+                setTimeout(() => setSaved(false), 3000);
+            } else {
+                showModal({
+                    title: 'Error Saving Profile',
+                    message: data.error || 'Failed to update admin profile.',
+                    type: 'error'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showModal({
+                title: 'Error',
+                message: 'An unexpected network error occurred.',
+                type: 'error'
+            });
+        }
+    };
+
+    const handleAdminChangePassword = async (e) => {
+        e.preventDefault();
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            showModal({
+                title: 'Missing Fields',
+                message: 'Please fill in all password fields.',
+                type: 'error'
+            });
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            showModal({
+                title: 'Password Mismatch',
+                message: 'New passwords do not match.',
+                type: 'error'
+            });
+            return;
+        }
+        setPasswordLoading(true);
+        try {
+            const res = await fetch('/api/user/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showModal({
+                    title: 'Password Updated',
+                    message: 'Your password has been changed successfully!',
+                    type: 'success'
+                });
+                setOldPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+            } else {
+                showModal({
+                    title: 'Change Failed',
+                    message: data.error || 'Failed to update your password.',
+                    type: 'error'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showModal({
+                title: 'Error',
+                message: 'An unexpected network error occurred.',
+                type: 'error'
+            });
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
+    const handleProfilePhotoUpload = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setProfileAvatarUrl(reader.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        input.click();
+    };
+
+    const handleDeleteProfilePhoto = () => {
+        setProfileAvatarUrl('');
+    };
+
+    const TABS = ['profile', 'general', 'listings', 'bookings', 'security', 'advanced'];
 
     if (!user) return null;
 
     return (
         <AdminLayout
-            title="Settings"
-            subtitle="Configure platform preferences"
+            title="Profile"
+            subtitle="Configure profile and preferences"
             actions={
                 <div className="settings-header-btns">
-                    <button className="settings-reset-btn" onClick={handleReset} id="settings-reset-btn">Reset</button>
-                    <button className="settings-save-btn" onClick={handleSave} id="settings-save-btn">
+                    {activeTab !== 'profile' && (
+                        <button className="settings-reset-btn" onClick={handleReset} id="settings-reset-btn">Reset</button>
+                    )}
+                    <button 
+                        className="settings-save-btn" 
+                        onClick={activeTab === 'profile' ? handleSaveAdminProfile : handleSave} 
+                        id="settings-save-btn"
+                    >
                         {saved ? '✓ Saved!' : '💾 Save Changes'}
                     </button>
                 </div>
             }
         >
-            {saved && <div className="admin-toast toast-success">✓ Settings saved successfully!</div>}
+            {saved && <div className="admin-toast toast-success">✓ Profile saved successfully!</div>}
 
             {/* Tab Bar */}
             <div className="settings-tab-bar">
@@ -131,12 +267,83 @@ export default function AdminSettings() {
                         onClick={() => setActiveTab(t)}
                         id={`settings-tab-${t}`}
                     >
-                        {{ general: '⚙️ General', listings: '🏠 Listings', bookings: '📋 Bookings', security: '🔒 Security', advanced: '🛠 Advanced' }[t]}
+                        {{ profile: '👤 Profile', general: '⚙️ General', listings: '🏠 Listings', bookings: '📋 Bookings', security: '🔒 Security', advanced: '🛠 Advanced' }[t]}
                     </button>
                 ))}
             </div>
 
             <div className="settings-body">
+                {/* ── PROFILE ── */}
+                {activeTab === 'profile' && (
+                    <>
+                        <SettingsSection title="Personal Information">
+                            <Field label="Profile Picture" hint="Upload a photo to represent your administrator account">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                    <div style={{
+                                        position: 'relative',
+                                        width: '80px',
+                                        height: '80px',
+                                        borderRadius: '50%',
+                                        background: profileAvatarUrl ? `url(${profileAvatarUrl}) center/cover` : 'linear-gradient(135deg, var(--db-brand), #7c3aed)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '2rem',
+                                        fontWeight: '800',
+                                        color: '#fff',
+                                        boxShadow: '0 4px 12px rgba(255, 56, 92, 0.2)'
+                                    }}>
+                                        {!profileAvatarUrl && (profileUsername || 'A')[0].toUpperCase()}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button 
+                                            className="settings-reset-btn" 
+                                            style={{ margin: 0, padding: '0.5rem 1rem', fontSize: '0.825rem' }} 
+                                            onClick={handleProfilePhotoUpload}
+                                        >
+                                            📷 Choose Photo
+                                        </button>
+                                        {profileAvatarUrl && (
+                                            <button 
+                                                className="danger-btn" 
+                                                style={{ margin: 0, padding: '0.5rem 1rem', fontSize: '0.825rem', height: 'auto', borderRadius: '0.5rem' }} 
+                                                onClick={handleDeleteProfilePhoto}
+                                            >
+                                                🗑️ Delete
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </Field>
+                            <Field label="Username" hint="Your public administrator username">
+                                <input className="settings-input" value={profileUsername} onChange={e => setProfileUsername(e.target.value)} />
+                            </Field>
+                            <Field label="Email Address" hint="Account login identifier (read-only)">
+                                <input className="settings-input" value={profileEmail} disabled style={{ opacity: 0.6, cursor: 'not-allowed' }} />
+                            </Field>
+                        </SettingsSection>
+
+                        <SettingsSection title="Change Password">
+                            <form onSubmit={handleAdminChangePassword} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <Field label="Current Password" hint="Verify your current credential identity">
+                                    <input className="settings-input" type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)} placeholder="••••••••" />
+                                </Field>
+                                <Field label="New Password" hint="Choose a strong security phrase">
+                                    <input className="settings-input" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
+                                </Field>
+                                <Field label="Confirm New Password" hint="Re-type your chosen password">
+                                    <input className="settings-input" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" />
+                                </Field>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                                    <button className="settings-save-btn" type="submit" disabled={passwordLoading} style={{ width: 'auto' }}>
+                                        {passwordLoading ? 'Updating...' : '🔒 Update Password'}
+                                    </button>
+                                </div>
+                            </form>
+                        </SettingsSection>
+                    </>
+                )}
+
                 {/* ── GENERAL ── */}
                 {activeTab === 'general' && (
                     <>
@@ -146,9 +353,6 @@ export default function AdminSettings() {
                             </Field>
                             <Field label="Tagline" hint="Shown below the logo on the landing page">
                                 <input className="settings-input" value={settings.tagline} onChange={e => update('tagline', e.target.value)} />
-                            </Field>
-                            <Field label="Contact Email" hint="Used for support and notifications">
-                                <input className="settings-input" type="email" value={settings.contactEmail} onChange={e => update('contactEmail', e.target.value)} />
                             </Field>
                         </SettingsSection>
 
@@ -191,13 +395,6 @@ export default function AdminSettings() {
                                     <input className="settings-input" type="number" min={1} max={20} value={settings.maxListingImages} onChange={e => update('maxListingImages', +e.target.value)} id="setting-max-images" />
                                     <span className="number-unit">images</span>
                                 </div>
-                            </Field>
-                            <Field label="Default Category" hint="Applied when no category is specified">
-                                <select className="settings-input" value={settings.defaultCategory} onChange={e => update('defaultCategory', e.target.value)} id="setting-default-category">
-                                    {['Stay', 'Beach', 'Mountain', 'City', 'Heritage', 'Forest', 'Farm', 'Desert'].map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
                             </Field>
                             <Field label={`Max Price Limit (${currency})`} hint="Listings above this price will require admin approval">
                                 <div className="settings-number-wrap">

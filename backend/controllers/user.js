@@ -275,6 +275,7 @@ module.exports.login = async (req, res, next) => {
         isAdmin: user.isAdmin || false,
         isSuspended: user.isSuspended || false,
         twoFactorEnabled: user.twoFactorEnabled || false,
+        avatarUrl: user.avatarUrl || ''
       };
       
       res.json({ success: true, message: "Welcome to HomiGo", RedirectUrl, user: userPayload });
@@ -421,7 +422,7 @@ module.exports.toggle2fa = async (req, res) => {
 
 module.exports.updateProfile = async (req, res) => {
   try {
-    const { notifications, username } = req.body;
+    const { notifications, username, avatarUrl } = req.body;
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found." });
@@ -431,6 +432,9 @@ module.exports.updateProfile = async (req, res) => {
     }
     if (notifications !== undefined) {
       user.notifications = notifications;
+    }
+    if (avatarUrl !== undefined) {
+      user.avatarUrl = avatarUrl;
     }
     await user.save();
 
@@ -444,12 +448,29 @@ module.exports.updateProfile = async (req, res) => {
         isAdmin: user.isAdmin || false,
         isSuspended: user.isSuspended || false,
         twoFactorEnabled: user.twoFactorEnabled || false,
-        notifications: user.notifications || false
+        notifications: user.notifications || false,
+        avatarUrl: user.avatarUrl || ''
       };
       res.json({ success: true, message: "Profile updated successfully.", user: userPayload });
     });
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ success: false, error: "Failed to update profile." });
+  }
+};
+
+module.exports.deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    await User.findByIdAndDelete(userId);
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ success: false, error: "Failed to log out after deleting account." });
+      }
+      res.json({ success: true, message: "Account deleted successfully." });
+    });
+  } catch (err) {
+    console.error("Delete account error:", err);
+    res.status(500).json({ success: false, error: "Failed to delete account." });
   }
 };

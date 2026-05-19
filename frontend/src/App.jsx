@@ -31,7 +31,7 @@ import PaymentPage from './pages/PaymentPage';
 import BookingConfirmation from './pages/BookingConfirmation';
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const { adminSettings } = usePreferences();
   const location = useLocation();
 
@@ -41,35 +41,11 @@ function AppRoutes() {
     }
   }, [adminSettings]);
 
-  if (adminSettings?.maintenanceMode && !user?.isAdmin) {
-    return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        width: '100vw',
-        background: '#0f172a',
-        color: '#f8fafc',
-        fontFamily: 'Inter, system-ui, sans-serif',
-        textAlign: 'center',
-        padding: '2rem',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🛠️</div>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
-          Under Maintenance
-        </h1>
-        <p style={{ fontSize: '1.1rem', color: '#94a3b8', maxWidth: '500px', lineHeight: 1.6, marginBottom: '2rem', marginLeft: 'auto', marginRight: 'auto' }}>
-          We are currently performing scheduled maintenance to improve our platform. We'll be back shortly!
-        </p>
-        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-          Please contact support if you need immediate assistance.
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (adminSettings?.maintenanceMode && user && !user.isAdmin) {
+      logout();
+    }
+  }, [adminSettings?.maintenanceMode, user, logout]);
 
   // Paths that should not show the standard Bootstrap navbar
   const isAdminRoute = location.pathname === '/admin-dashboard' || location.pathname.startsWith('/admin/');
@@ -94,6 +70,8 @@ function AppRoutes() {
       ? element
       : <Navigate to="/login" replace />;
   };
+
+  const isUnderMaintenance = adminSettings?.maintenanceMode && user && !user.isAdmin;
 
   return (
     <>
@@ -145,6 +123,47 @@ function AppRoutes() {
         {/* ── FALLBACK ── */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {isUnderMaintenance && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: '1.5rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            padding: '3rem 2rem',
+            maxWidth: '480px',
+            width: '100%',
+            textAlign: 'center',
+            color: '#f8fafc',
+            fontFamily: 'Inter, system-ui, sans-serif'
+          }}>
+            <div style={{ fontSize: '4.5rem', marginBottom: '1.5rem' }}>🛠️</div>
+            <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+              System Under Maintenance
+            </h1>
+            <p style={{ fontSize: '1rem', color: '#94a3b8', lineHeight: 1.6, marginBottom: '2rem' }}>
+              We are currently performing scheduled maintenance to improve our platform. We will be back online shortly!
+            </p>
+            <div style={{ fontSize: '0.825rem', color: '#64748b', borderTop: '1px solid #334155', paddingTop: '1.5rem' }}>
+              Thank you for your patience. Only administrators can access and update the platform at this time.
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
