@@ -11,7 +11,7 @@ const NAV_ITEMS = [
     { icon: '📋', label: 'Bookings', path: '/admin/bookings' },
     { icon: '👥', label: 'Users', path: '/admin/users' },
     { icon: '📈', label: 'Analytics', path: '/admin/analytics' },
-    { icon: '⚙️', label: 'Settings', path: '/admin/settings' },
+    { icon: '⚙️', label: 'Profile', path: '/admin/settings' },
 ];
 
 export default function AdminLayout({ children, title, subtitle, actions }) {

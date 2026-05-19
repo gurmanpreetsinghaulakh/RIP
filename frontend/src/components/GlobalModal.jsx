@@ -7,13 +7,11 @@ const GlobalModal = () => {
 
     if (!modal.isOpen) return null;
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         if (modal.onConfirm) {
-            modal.onConfirm();
+            await modal.onConfirm();
         }
-        if (!modal.isLoading) {
-            closeModal();
-        }
+        closeModal();
     };
 
     const handleCancel = () => {
@@ -67,7 +65,7 @@ const GlobalModal = () => {
                 </div>
 
                 <div className="modal-actions" style={{ padding: '1.5rem', justifyContent: 'center', gap: '1rem', border: 'none' }}>
-                    {modal.onCancel && (
+                    {(modal.onCancel || modal.type === 'confirm' || modal.type === 'delete' || modal.type === 'warning') && (
                         <button
                             className="settings-reset-btn"
                             onClick={handleCancel}

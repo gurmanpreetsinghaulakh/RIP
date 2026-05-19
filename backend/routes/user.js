@@ -37,5 +37,6 @@ router.patch("/admin/users/:id/suspend", isLoggedIn, isAdmin, wrapAsync(usercont
 router.post("/user/change-password", isLoggedIn, wrapAsync(usercontroller.changePassword));
 router.post("/user/toggle-2fa", isLoggedIn, wrapAsync(usercontroller.toggle2fa));
 router.post("/user/profile", isLoggedIn, wrapAsync(usercontroller.updateProfile));
+router.delete("/user/account", isLoggedIn, wrapAsync(usercontroller.deleteAccount));
 
 module.exports = router;

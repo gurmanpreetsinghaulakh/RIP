@@ -122,10 +122,14 @@ export default function AdminUsers() {
                     </thead>
                     <tbody>
                         {filtered.map(u => (
-                            <tr key={u.id}>
+                            <tr key={u._id || u.id}>
                                 <td>
                                     <div className="table-listing-cell">
-                                        <div className="user-avatar-sm">{u.username[0].toUpperCase()}</div>
+                                        {u.avatarUrl ? (
+                                            <img src={u.avatarUrl} alt={u.username} className="user-avatar-sm" style={{ objectFit: 'cover', borderRadius: '50%', width: '32px', height: '32px' }} />
+                                        ) : (
+                                            <div className="user-avatar-sm">{u.username[0].toUpperCase()}</div>
+                                        )}
                                         <strong>{u.username}</strong>
                                     </div>
                                 </td>
@@ -177,7 +181,11 @@ export default function AdminUsers() {
                             <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
                         </div>
                         <div className="modal-profile-header">
-                            <div className="modal-user-avatar">{selected.username[0].toUpperCase()}</div>
+                            {selected.avatarUrl ? (
+                                <img src={selected.avatarUrl} alt={selected.username} className="modal-user-avatar" style={{ objectFit: 'cover', borderRadius: '50%', width: '64px', height: '64px' }} />
+                            ) : (
+                                <div className="modal-user-avatar">{selected.username[0].toUpperCase()}</div>
+                            )}
                             <div>
                                 <div className="modal-user-name">{selected.username}</div>
                                 <span className={`role-pill ${selected.isAdmin ? 'role-admin' : 'role-user'}`}>

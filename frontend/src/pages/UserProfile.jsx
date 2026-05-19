@@ -8,7 +8,7 @@ import UserLayout from '../components/UserLayout';
 export default function UserProfile() {
     const { user, logout, login } = useAuth();
     const { updatePreferences, t } = usePreferences();
-    const { showModal } = useGlobalModal();
+    const { showModal, closeModal } = useGlobalModal();
     const navigate = useNavigate();
     const [saved, setSaved] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -65,7 +65,8 @@ export default function UserProfile() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: profile.username,
-                    notifications: profile.notifications
+                    notifications: profile.notifications,
+                    avatarUrl: profile.avatarUrl
                 })
             });
             const data = await res.json();
@@ -282,6 +283,24 @@ export default function UserProfile() {
                             >
                                 📷
                             </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                            <button 
+                                className="tbl-btn tbl-btn-edit" 
+                                style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.2rem', cursor: 'pointer', borderRadius: '0.5rem', border: 'none' }} 
+                                onClick={handlePhotoUpload}
+                            >
+                                ✏️ Edit
+                            </button>
+                            {profile.avatarUrl && (
+                                <button 
+                                    className="tbl-btn tbl-btn-delete" 
+                                    style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.2rem', cursor: 'pointer', borderRadius: '0.5rem', border: 'none' }} 
+                                    onClick={() => setProfile(prev => ({ ...prev, avatarUrl: '' }))}
+                                >
+                                    🗑️ Delete
+                                </button>
+                            )}
                         </div>
                         <div>
                             <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800' }}>{user.username}</h3>
@@ -524,9 +543,32 @@ export default function UserProfile() {
                                         type: 'delete', 
                                         confirmText: 'Request Deletion',
                                         onConfirm: async () => {
-                                            if (logout) {
-                                                await logout();
-                                                navigate('/');
+                                            try {
+                                                const res = await fetch('/api/user/account', {
+                                                    method: 'DELETE'
+                                                });
+                                                const data = await res.json();
+                                                if (data.success) {
+                                                    localStorage.removeItem(`homigo_user_profile_${user.email}`);
+                                                    if (logout) {
+                                                        await logout();
+                                                    }
+                                                    closeModal();
+                                                    navigate('/');
+                                                } else {
+                                                    showModal({
+                                                        title: 'Failed to Delete Account',
+                                                        message: data.error || 'Something went wrong.',
+                                                        type: 'error'
+                                                    });
+                                                }
+                                            } catch (err) {
+                                                console.error(err);
+                                                showModal({
+                                                    title: 'Error',
+                                                    message: 'An unexpected network error occurred.',
+                                                    type: 'error'
+                                                });
                                             }
                                         }
                                     })}
