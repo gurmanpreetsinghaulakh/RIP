@@ -105,9 +105,13 @@ const clearPendingSignup = (req) => {
   req.session.pendingSignup = null;
 };
 
+const clearPendingLogin = (req) => {
+  req.session.pendingLogin = null;
+};
+
 module.exports.signup = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, requireEmailVerification } = req.body;
 
     if (!username || !email || !password) {
       return res.status(400).json({ success: false, error: "Username, email and password are required." });
@@ -117,6 +121,32 @@ module.exports.signup = async (req, res) => {
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ success: false, error: "An account with this email already exists." });
+    }
+
+    // If email verification is NOT required, register and login the user immediately
+    if (requireEmailVerification === false) {
+      const newuser = new User({ email, username });
+      const registeredUser = await User.register(newuser, password);
+
+      return req.login(registeredUser, (err) => {
+        if (err) {
+          return res.status(500).json({ success: false, error: "Login failed after registration." });
+        }
+        res.status(201).json({
+          success: true,
+          requireVerification: false,
+          message: "Account created successfully.",
+          user: {
+            _id: registeredUser._id,
+            username: registeredUser.username,
+            email: registeredUser.email,
+            isAdmin: registeredUser.isAdmin || false,
+            isSuspended: registeredUser.isSuspended || false,
+            twoFactorEnabled: registeredUser.twoFactorEnabled || false,
+            avatarUrl: registeredUser.avatarUrl || ''
+          }
+        });
+      });
     }
 
     const otp = generateOtp();
@@ -134,7 +164,7 @@ module.exports.signup = async (req, res) => {
 
     await sendOtpEmail(email, otp);
 
-    res.status(200).json({ success: true, message: "OTP sent to your email.", expiresIn: 60 });
+    res.status(200).json({ success: true, requireVerification: true, message: "OTP sent to your email.", expiresIn: 60 });
   } catch (e) {
     console.error("Signup OTP error:", e);
     res.status(400).json({ success: false, error: e.message });
@@ -224,7 +254,7 @@ module.exports.login = async (req, res, next) => {
     if (err) {
       return next(err);
     }
-    
+
     const { username } = req.body;
     let existingUser = null;
     if (username) {
@@ -258,16 +288,37 @@ module.exports.login = async (req, res, next) => {
       });
     }
 
+    if (user.twoFactorEnabled) {
+      const otp = generateOtp();
+      const expiresAt = Date.now() + 60 * 1000;
+      req.session.pendingLogin = {
+        userId: user._id.toString(),
+        otp,
+        expiresAt,
+        attempts: 0,
+        redirectUrl: res.locals.redirectUrl || null,
+      };
+
+      await sendOtpEmail(user.email, otp);
+
+      return res.json({
+        success: true,
+        requireTwoFactor: true,
+        message: "OTP sent to your email. Please verify to complete login.",
+        expiresIn: 60,
+      });
+    }
+
     req.login(user, (loginErr) => {
       if (loginErr) {
         return next(loginErr);
       }
-      
+
       let RedirectUrl = user.isAdmin ? "/admin-dashboard" : "/dashboard";
       if (res.locals.redirectUrl) {
         RedirectUrl = res.locals.redirectUrl;
       }
-      
+
       const userPayload = {
         _id: user._id,
         username: user.username,
@@ -277,7 +328,7 @@ module.exports.login = async (req, res, next) => {
         twoFactorEnabled: user.twoFactorEnabled || false,
         avatarUrl: user.avatarUrl || ''
       };
-      
+
       res.json({ success: true, message: "Welcome to HomiGo", RedirectUrl, user: userPayload });
     });
   })(req, res, next);
@@ -285,12 +336,94 @@ module.exports.login = async (req, res, next) => {
 
 
 module.exports.logout = (req, res, next) => {
+  clearPendingLogin(req);
   req.logout((err) => {
     if (err) {
       return next(err);
     }
     res.json({ success: true, message: "You are logged out!" });
   });
+};
+
+module.exports.verifyLoginOtp = async (req, res, next) => {
+  try {
+    const { otp } = req.body;
+    const pending = req.session.pendingLogin;
+
+    if (!pending) {
+      return res.status(400).json({ success: false, error: "No pending login found. Please login again." });
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      clearPendingLogin(req);
+      return res.status(400).json({ success: false, error: "OTP expired. Please login again." });
+    }
+
+    pending.attempts = (pending.attempts || 0) + 1;
+    if (otp !== pending.otp) {
+      return res.status(400).json({ success: false, error: "Incorrect OTP. Please try again." });
+    }
+
+    const user = await User.findById(pending.userId);
+    if (!user) {
+      clearPendingLogin(req);
+      return res.status(404).json({ success: false, error: "User not found." });
+    }
+    if (user.isSuspended) {
+      clearPendingLogin(req);
+      return res.status(403).json({ success: false, error: "your account is suspended" });
+    }
+
+    clearPendingLogin(req);
+
+    req.login(user, (loginErr) => {
+      if (loginErr) {
+        return next(loginErr);
+      }
+
+      const RedirectUrl = pending.redirectUrl || (user.isAdmin ? "/admin-dashboard" : "/dashboard");
+      const userPayload = {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin || false,
+        isSuspended: user.isSuspended || false,
+        twoFactorEnabled: user.twoFactorEnabled || false,
+        avatarUrl: user.avatarUrl || ''
+      };
+
+      res.json({ success: true, message: "Welcome to HomiGo", RedirectUrl, user: userPayload });
+    });
+  } catch (err) {
+    console.error("Verify login OTP error:", err);
+    res.status(500).json({ success: false, error: "Failed to verify OTP." });
+  }
+};
+
+module.exports.resendLoginOtp = async (req, res) => {
+  try {
+    const pending = req.session.pendingLogin;
+    if (!pending) {
+      return res.status(400).json({ success: false, error: "No pending login request found." });
+    }
+
+    const otp = generateOtp();
+    pending.otp = otp;
+    pending.expiresAt = Date.now() + 60 * 1000;
+    pending.attempts = 0;
+
+    const user = await User.findById(pending.userId);
+    if (!user) {
+      clearPendingLogin(req);
+      return res.status(404).json({ success: false, error: "User not found." });
+    }
+
+    await sendOtpEmail(user.email, otp);
+    res.json({ success: true, message: "A new OTP has been sent to your email.", expiresIn: 60 });
+  } catch (err) {
+    console.error("Resend login OTP error:", err);
+    res.status(500).json({ success: false, error: "Failed to resend OTP." });
+  }
 };
 
 module.exports.sendBookingConfirmationEmail = sendBookingConfirmationEmail;
@@ -353,16 +486,16 @@ module.exports.getUserReviews = async (req, res) => {
 // Admin Controllers
 module.exports.getAllUsers = async (req, res) => {
   const users = await User.find({}).select("-salt -hash").sort({ createdAt: -1 });
-  
+
   const usersWithCounts = await Promise.all(users.map(async (user) => {
     const listingsCount = await Listing.countDocuments({ owner: user._id });
     const bookingsCount = await Booking.countDocuments({ user: user._id });
-    
+
     const userObj = user.toObject();
     if (!userObj.createdAt) {
       userObj.createdAt = user._id.getTimestamp();
     }
-    
+
     return {
       ...userObj,
       listingsCount,
@@ -422,13 +555,21 @@ module.exports.toggle2fa = async (req, res) => {
 
 module.exports.updateProfile = async (req, res) => {
   try {
-    const { notifications, username, avatarUrl } = req.body;
+    const { notifications, username, avatarUrl, email } = req.body;
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found." });
     }
     if (username) {
       user.username = username;
+    }
+    if (email) {
+      // Check if email is already taken by another user
+      const existingUser = await User.findOne({ email });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+        return res.status(400).json({ success: false, error: "Email is already in use by another account." });
+      }
+      user.email = email;
     }
     if (notifications !== undefined) {
       user.notifications = notifications;
@@ -440,7 +581,7 @@ module.exports.updateProfile = async (req, res) => {
 
     req.login(user, err => {
       if (err) return res.status(500).json({ success: false, error: "Failed to update session." });
-      
+
       const userPayload = {
         _id: user._id,
         username: user.username,

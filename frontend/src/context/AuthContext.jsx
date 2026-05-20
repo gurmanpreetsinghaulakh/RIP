@@ -22,7 +22,20 @@ export function AuthProvider({ children }) {
 
         if (storedUser) {
             try {
-                setUser(JSON.parse(storedUser));
+                const parsedUser = JSON.parse(storedUser);
+                // Enrich on init as well
+                if (parsedUser && parsedUser.email) {
+                    const storedProfile = localStorage.getItem(`homigo_user_profile_${parsedUser.email}`);
+                    if (storedProfile) {
+                        try {
+                            const parsedProfile = JSON.parse(storedProfile);
+                            if (!parsedUser.avatarUrl && parsedProfile.avatarUrl) {
+                                parsedUser.avatarUrl = parsedProfile.avatarUrl;
+                            }
+                        } catch {}
+                    }
+                }
+                setUser(parsedUser);
             } catch {
                 localStorage.removeItem('homigo_user');
             }
@@ -31,6 +44,18 @@ export function AuthProvider({ children }) {
     }, []);
 
     const login = (userData) => {
+        // Enrich from local profile storage if available (especially for avatarUrl)
+        if (userData && userData.email) {
+            const storedProfile = localStorage.getItem(`homigo_user_profile_${userData.email}`);
+            if (storedProfile) {
+                try {
+                    const parsed = JSON.parse(storedProfile);
+                    if (!userData.avatarUrl && parsed.avatarUrl) {
+                        userData.avatarUrl = parsed.avatarUrl;
+                    }
+                } catch {}
+            }
+        }
         setUser(userData);
         localStorage.setItem('homigo_user', JSON.stringify(userData));
     };

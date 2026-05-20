@@ -10,7 +10,7 @@ const upload = multer({ storage });
 
 router.route("/")
     .get(wrapAsync(listingcontroller.index))
-    .post(isLoggedIn, isAdmin, upload.array('listing[Image]', 3), validateListing, wrapAsync(listingcontroller.createroute));
+    .post(isLoggedIn, isAdmin, upload.array('listing[Image]', 20), validateListing, wrapAsync(listingcontroller.createroute));
 
 //search route
 router.get("/search", wrapAsync(listingcontroller.searchListings));
@@ -32,7 +32,7 @@ router.patch("/admin/bookings/:id", isLoggedIn, isAdmin, wrapAsync(listingcontro
 
 router.route("/:id")
     .get(isLoggedIn, wrapAsync(listingcontroller.showlisting))
-    .put(isLoggedIn, isAdmin, isOwner, upload.array('listing[Image]', 3), validateListing, wrapAsync(listingcontroller.updateroute))
+    .put(isLoggedIn, isAdmin, isOwner, upload.array('listing[Image]', 20), validateListing, wrapAsync(listingcontroller.updateroute))
     .delete(isLoggedIn, isAdmin, isOwner, wrapAsync(listingcontroller.deleteroute));
 
 // check availability route
