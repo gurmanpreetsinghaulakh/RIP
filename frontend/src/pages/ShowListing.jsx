@@ -274,70 +274,72 @@ useEffect(() => {
                         <p style={{ whiteSpace: 'pre-line' }}>{listing.description}</p>
                     </div>
 
-                    <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.04)', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Guest Reviews</h3>
-                                <p style={{ margin: '0.4rem 0 0', color: 'var(--db-muted)' }}>{listing.reviews?.length || 0} review{listing.reviews?.length === 1 ? '' : 's'}</p>
+                    {isReviewsEnabled && (
+                        <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.04)', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Guest Reviews</h3>
+                                    <p style={{ margin: '0.4rem 0 0', color: 'var(--db-muted)' }}>{listing.reviews?.length || 0} review{listing.reviews?.length === 1 ? '' : 's'}</p>
+                                </div>
+                                {user && !user.isAdmin && !userHasReviewed && (
+                                    <span style={{ color: '#10b981', fontWeight: 700 }}>Write a review for this home</span>
+                                )}
                             </div>
-                            {user && !user.isAdmin && !userHasReviewed && (
-                                <span style={{ color: '#10b981', fontWeight: 700 }}>Write a review for this home</span>
+
+                            <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1.25rem' }}>
+                                {listing.reviews?.map((review) => (
+                                    <div key={review._id} style={{ padding: '1.2rem', borderRadius: '0.9rem', background: 'rgba(255,255,255,0.03)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                            <div>
+                                                <strong>{review.author?.username || 'Guest'}</strong>
+                                                <div style={{ marginTop: '0.35rem', color: 'var(--db-muted)', fontSize: '0.95rem' }}>
+                                                    {new Date(review.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>{'⭐'.repeat(review.rating || 0)}{'☆'.repeat(5 - (review.rating || 0))}</div>
+                                        </div>
+                                        <p style={{ marginTop: '1rem', lineHeight: 1.7, color: 'var(--db-text)' }}>{review.comment}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {user && !user.isAdmin && (
+                                <form onSubmit={handleReviewSubmit} style={{ marginTop: '1.75rem' }}>
+                                    <h4 style={{ marginBottom: '0.75rem' }}>{userHasReviewed ? 'You already left a review for this property.' : 'Leave your review'}</h4>
+                                    <div style={{ display: 'grid', gap: '0.85rem' }}>
+                                        <label style={{ fontSize: '0.9rem', fontWeight: 600 }}>Rating</label>
+                                        <select
+                                            value={reviewForm.rating}
+                                            onChange={(e) => handleReviewInput('rating', Number(e.target.value))}
+                                            disabled={userHasReviewed}
+                                            style={{ width: '100px', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid #d1d5db' }}
+                                        >
+                                            {[5, 4, 3, 2, 1].map((value) => (
+                                                <option key={value} value={value}>{value} star{value > 1 ? 's' : ''}</option>
+                                            ))}
+                                        </select>
+                                        <label style={{ fontSize: '0.9rem', fontWeight: 600 }}>Comment</label>
+                                        <textarea
+                                            value={reviewForm.comment}
+                                            onChange={(e) => handleReviewInput('comment', e.target.value)}
+                                            rows={4}
+                                            disabled={userHasReviewed}
+                                            style={{ width: '100%', padding: '1rem', borderRadius: '0.9rem', border: '1px solid #d1d5db' }}
+                                        />
+                                        {reviewError && <div style={{ color: '#ef4444', fontSize: '0.9rem' }}>{reviewError}</div>}
+                                        <button
+                                            type="submit"
+                                            className="tbl-btn tbl-btn-edit"
+                                            disabled={userHasReviewed || submittingReview}
+                                            style={{ width: 'fit-content', fontSize: '0.95rem' }}
+                                        >
+                                            {submittingReview ? 'Submitting…' : userHasReviewed ? 'Review already submitted' : 'Submit Review'}
+                                        </button>
+                                    </div>
+                                </form>
                             )}
                         </div>
-
-                        <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1.25rem' }}>
-                            {listing.reviews?.map((review) => (
-                                <div key={review._id} style={{ padding: '1.2rem', borderRadius: '0.9rem', background: 'rgba(255,255,255,0.03)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                                        <div>
-                                            <strong>{review.author?.username || 'Guest'}</strong>
-                                            <div style={{ marginTop: '0.35rem', color: 'var(--db-muted)', fontSize: '0.95rem' }}>
-                                                {new Date(review.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                            </div>
-                                        </div>
-                                        <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>{'⭐'.repeat(review.rating || 0)}{'☆'.repeat(5 - (review.rating || 0))}</div>
-                                    </div>
-                                    <p style={{ marginTop: '1rem', lineHeight: 1.7, color: 'var(--db-text)' }}>{review.comment}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        {user && !user.isAdmin && (
-                            <form onSubmit={handleReviewSubmit} style={{ marginTop: '1.75rem' }}>
-                                <h4 style={{ marginBottom: '0.75rem' }}>{userHasReviewed ? 'You already left a review for this property.' : 'Leave your review'}</h4>
-                                <div style={{ display: 'grid', gap: '0.85rem' }}>
-                                    <label style={{ fontSize: '0.9rem', fontWeight: 600 }}>Rating</label>
-                                    <select
-                                        value={reviewForm.rating}
-                                        onChange={(e) => handleReviewInput('rating', Number(e.target.value))}
-                                        disabled={userHasReviewed}
-                                        style={{ width: '100px', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid #d1d5db' }}
-                                    >
-                                        {[5, 4, 3, 2, 1].map((value) => (
-                                            <option key={value} value={value}>{value} star{value > 1 ? 's' : ''}</option>
-                                        ))}
-                                    </select>
-                                    <label style={{ fontSize: '0.9rem', fontWeight: 600 }}>Comment</label>
-                                    <textarea
-                                        value={reviewForm.comment}
-                                        onChange={(e) => handleReviewInput('comment', e.target.value)}
-                                        rows={4}
-                                        disabled={userHasReviewed}
-                                        style={{ width: '100%', padding: '1rem', borderRadius: '0.9rem', border: '1px solid #d1d5db' }}
-                                    />
-                                    {reviewError && <div style={{ color: '#ef4444', fontSize: '0.9rem' }}>{reviewError}</div>}
-                                    <button
-                                        type="submit"
-                                        className="tbl-btn tbl-btn-edit"
-                                        disabled={userHasReviewed || submittingReview}
-                                        style={{ width: 'fit-content', fontSize: '0.95rem' }}
-                                    >
-                                        {submittingReview ? 'Submitting…' : userHasReviewed ? 'Review already submitted' : 'Submit Review'}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-                    </div>
+                    )}
 
                     {/* Admin Actions */}
                     {isOwnerOrAdmin && (

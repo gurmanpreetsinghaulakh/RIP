@@ -263,10 +263,10 @@ module.exports.renderEditroute = async (req, res) => {
 
 module.exports.updateroute = async (req, res) => {
   let { id } = req.params;
-  
+
   // Update the basic fields first and get the refreshed document
   let Listing = await listing.findByIdAndUpdate(id, { ...req.body.listing }, { new: true, runValidators: true });
-  
+
   if (!Listing) {
     return res.status(404).json({ success: false, error: "Listing not found" });
   }
@@ -277,16 +277,16 @@ module.exports.updateroute = async (req, res) => {
       url: f.path && f.path.startsWith('http') ? f.path : `/uploads/${f.filename}`,
       filename: f.filename
     }));
-    
+
     Listing.Image = uploadedImages[0];
     Listing.images = uploadedImages;
     await Listing.save();
-  } 
+  }
   // Handle single file upload if present (though route mostly uses .array now)
   else if (req.file) {
     const filename = req.file.filename;
     const url = req.file.path && req.file.path.startsWith('http') ? req.file.path : `/uploads/${filename}`;
-    
+
     Listing.Image = { url, filename };
     Listing.images = [{ url, filename }];
     await Listing.save();
@@ -379,12 +379,14 @@ module.exports.bookListing = async (req, res) => {
     }
 
     try {
-      await sendBookingConfirmationEmail(
-        req.user.email,
-        req.user.username || req.user.email,
-        newBooking,
-        listingToBook
-      );
+      if (req.user.notifications !== false) {
+        await sendBookingConfirmationEmail(
+          req.user.email,
+          req.user.username || req.user.email,
+          newBooking,
+          listingToBook
+        );
+      }
     } catch (emailError) {
       console.error('Booking confirmation email error:', emailError);
     }
@@ -422,7 +424,7 @@ module.exports.getMyBookings = async (req, res) => {
   const bookings = await Booking.find({ user: req.user._id })
     .populate('listing')
     .sort({ createdAt: -1 });
-  
+
   res.json({ success: true, bookings });
 };
 
@@ -431,19 +433,19 @@ module.exports.getAllBookings = async (req, res) => {
     .populate('listing')
     .populate('user')
     .sort({ createdAt: -1 });
-  
+
   res.json({ success: true, bookings });
 };
 
 module.exports.updateBookingStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  
+
   const updatedBooking = await Booking.findByIdAndUpdate(id, { status }, { new: true });
-  
+
   if (!updatedBooking) {
     return res.status(404).json({ success: false, error: "Booking not found" });
   }
-  
+
   res.json({ success: true, booking: updatedBooking });
 };

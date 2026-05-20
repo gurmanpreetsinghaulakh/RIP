@@ -20,16 +20,35 @@ export default function Signup() {
         setLoading(true);
         setError('');
 
+        const adminStored = localStorage.getItem('homigo_admin_settings');
+        let requireEmailVerification = false;
+        if (adminStored) {
+            try {
+                const parsed = JSON.parse(adminStored);
+                if (parsed.requireEmailVerification !== undefined) {
+                    requireEmailVerification = parsed.requireEmailVerification;
+                }
+            } catch {}
+        }
+
         try {
             const res = await fetch('/api/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    requireEmailVerification
+                }),
             });
             const result = await res.json();
             if (result.success) {
-                navigate('/signup/verify');
+                if (result.requireVerification === false) {
+                    login(result.user);
+                    navigate(result.user.isAdmin ? '/admin-dashboard' : '/dashboard');
+                } else {
+                    navigate('/signup/verify');
+                }
             } else {
                 setError(result.error || 'Signup failed. Please try again.');
             }

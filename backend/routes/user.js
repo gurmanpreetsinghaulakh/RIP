@@ -3,7 +3,7 @@ const router = express.Router();
 const wrapAsync = require("../utils/wrapAsync.js");
 const passport = require("passport");
 const { saveRedirectUrl, isLoggedIn, isAdmin } = require("../middleware.js");
-const usercontroller= require("../controllers/user.js");
+const usercontroller = require("../controllers/user.js");
 const listingcontroller = require("../controllers/listings.js");
 
 
@@ -16,9 +16,11 @@ router.post("/signup/verify", wrapAsync(usercontroller.verifySignupOtp));
 router.post("/signup/resend", wrapAsync(usercontroller.resendSignupOtp));
 
 router.route("/login")
-.get(usercontroller.renderloginform)
-.post(saveRedirectUrl, wrapAsync(usercontroller.login));
+  .get(usercontroller.renderloginform)
+  .post(saveRedirectUrl, wrapAsync(usercontroller.login));
 
+router.post("/login/verify-otp", wrapAsync(usercontroller.verifyLoginOtp));
+router.post("/login/resend-otp", wrapAsync(usercontroller.resendLoginOtp));
 
 //logout  
 router.get("/logout", usercontroller.logout);

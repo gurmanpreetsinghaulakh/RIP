@@ -23,6 +23,7 @@ export default function NewListing() {
     const { showModal } = useGlobalModal();
     const navigate = useNavigate();
     const { formatPrice, currency, adminSettings } = usePreferences();
+    const minImages = adminSettings?.minListingImages || 4;
     const maxImages = adminSettings?.maxListingImages || 5;
     const maxPriceLimit = adminSettings?.maxPriceLimit || 100000;
 
@@ -64,10 +65,21 @@ export default function NewListing() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (files.length === 0 || files.length > maxImages) {
+        if (files.length < minImages) {
+            const remaining = minImages - files.length;
             showModal({
-                title: 'Image Required',
-                message: `Please select between 1 and ${maxImages} images for the listing.`,
+                title: 'More Photos Required',
+                message: `Please upload remaining photos: ${minImages} required, upload ${remaining} more.`,
+                type: 'error',
+                confirmText: 'Understood'
+            });
+            return;
+        }
+
+        if (files.length > maxImages) {
+            showModal({
+                title: 'Too Many Images',
+                message: `You can only upload a maximum of ${maxImages} images.`,
                 type: 'error',
                 confirmText: 'Understood'
             });
@@ -403,7 +415,7 @@ export default function NewListing() {
                                     <div style={{ padding: '2rem 1rem' }}>
                                         <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.8rem' }}>🖼️</span>
                                         <p style={{ fontSize: '0.88rem', color: 'var(--db-muted)', marginBottom: '1.2rem' }}>
-                                            Choose up to {maxImages} high-resolution images to represent this property.
+                                            Upload between {minImages} and {maxImages} high-resolution images to represent this property.
                                         </p>
                                         <label className="tbl-btn tbl-btn-edit" style={{ cursor: 'pointer', display: 'inline-block', padding: '0.6rem 1.2rem' }}>
                                             Select Photos

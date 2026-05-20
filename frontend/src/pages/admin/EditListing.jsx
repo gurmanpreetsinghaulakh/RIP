@@ -26,6 +26,7 @@ export default function EditListing() {
     const { showModal } = useGlobalModal();
     const navigate = useNavigate();
     const { formatPrice, currency, adminSettings } = usePreferences();
+    const minImages = adminSettings?.minListingImages || 4;
     const maxImages = adminSettings?.maxListingImages || 5;
     const maxPriceLimit = adminSettings?.maxPriceLimit || 100000;
 
@@ -98,6 +99,27 @@ export default function EditListing() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (imagePreviews.length < minImages) {
+            const remaining = minImages - imagePreviews.length;
+            showModal({
+                title: 'More Photos Required',
+                message: `Please upload remaining photos: ${minImages} required, upload ${remaining} more.`,
+                type: 'error',
+                confirmText: 'Understood'
+            });
+            return;
+        }
+
+        if (imagePreviews.length > maxImages) {
+            showModal({
+                title: 'Too Many Images',
+                message: `You can only have a maximum of ${maxImages} images.`,
+                type: 'error',
+                confirmText: 'Understood'
+            });
+            return;
+        }
 
         if (Number(formData.price) > maxPriceLimit) {
             showModal({
@@ -421,7 +443,7 @@ export default function EditListing() {
                                         {imagePreviews.length < maxImages && (
                                             <div style={{ marginTop: '1.2rem' }}>
                                                 <p style={{ fontSize: '0.82rem', color: 'var(--db-muted)', marginBottom: '0.8rem' }}>
-                                                    Upload up to {maxImages - imagePreviews.length} more photo(s).
+                                                    Required: {minImages} minimum. You can upload up to {maxImages - imagePreviews.length} more photo(s).
                                                 </p>
                                                 <label className="tbl-btn tbl-btn-edit" style={{ cursor: 'pointer', display: 'inline-block', padding: '0.6rem 1.2rem' }}>
                                                     Add Photo
