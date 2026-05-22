@@ -991,7 +991,7 @@ export default function UserProfile() {
                       message:
                         "Proceed with extreme caution. This will permanently delete your explorer profile.",
                       type: "delete",
-                      confirmText: "Request Deletion",
+                      confirmText: "Delete Account",
                       onConfirm: async () => {
                         try {
                           const res = await fetch("/api/user/account", {
